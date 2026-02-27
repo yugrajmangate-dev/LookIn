@@ -9,6 +9,11 @@ import {
   AlertCircle,
   Image as ImageIcon,
   Trash2,
+  Camera,
+  Hash,
+  User,
+  GraduationCap,
+  Layers,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { apiUrl, type EnrollmentResponse, type ErrorResponse } from "@/lib/api";
@@ -153,17 +158,31 @@ export default function EnrollStudentPage(): React.JSX.Element {
         description="Register a new student by providing their details and uploading reference photos for face recognition."
       />
 
-      <div className="mx-auto max-w-2xl">
+      <div className="mx-auto max-w-3xl">
+        {/* ── Guidelines Info ──────────────────────────── */}
+        <div className="alert-info mb-4 animate-fade-in sm:mb-6">
+          <Camera className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600 hidden sm:block" />
+          <div className="text-xs text-blue-800 sm:text-sm">
+            <p className="font-semibold">Photo Guidelines</p>
+            <ul className="mt-1 space-y-0.5 text-blue-700 list-disc ml-4 sm:mt-1.5">
+              <li>Upload 3-5 clear, front-facing photos</li>
+              <li>Different angles and lighting help</li>
+              <li>One face visible per photo</li>
+              <li>Avoid blurry or dark images</li>
+            </ul>
+          </div>
+        </div>
+
         {/* Success Banner */}
         {successResult && (
-          <div className="mb-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 animate-fadeIn">
+          <div className="alert-success mb-6 animate-slide-up">
             <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600" />
             <div className="text-sm text-emerald-800">
               <p className="font-semibold">{successResult.message}</p>
-              <p className="mt-1 text-emerald-600">
-                Student: <strong>{successResult.student_id}</strong> —{" "}
-                {successResult.encodings_stored} encoding
-                {successResult.encodings_stored !== 1 ? "s" : ""} stored
+              <p className="mt-1 text-emerald-700">
+                Student: <strong>{successResult.student_id}</strong> &mdash;{" "}
+                {successResult.encodings_stored} face encoding
+                {successResult.encodings_stored !== 1 ? "s" : ""} stored successfully
               </p>
             </div>
           </div>
@@ -171,122 +190,141 @@ export default function EnrollStudentPage(): React.JSX.Element {
 
         {/* Error Banner */}
         {errorMessage && (
-          <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-4 animate-fadeIn">
+          <div className="alert-error mb-6 animate-fade-in">
             <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-500" />
             <p className="text-sm text-red-700">{errorMessage}</p>
           </div>
         )}
 
         {/* ── Enrollment Form ────────────────────────── */}
-        <form onSubmit={handleSubmit} className="card space-y-6">
-          {/* Student ID */}
-          <div>
-            <label
-              htmlFor="studentId"
-              className="mb-1.5 block text-sm font-medium text-gray-700"
-            >
-              Student ID <span className="text-red-400">*</span>
-            </label>
-            <input
-              id="studentId"
-              type="text"
-              value={studentId}
-              onChange={(event) => setStudentId(event.target.value)}
-              placeholder="e.g. STU-2025-0042"
-              required
-              className="input-field"
-            />
+        <form onSubmit={handleSubmit} className="card-elevated overflow-hidden">
+          {/* Form Header */}
+          <div className="border-b border-gray-100 bg-gray-50/50 px-4 py-3 sm:px-6 sm:py-4">
+            <h2 className="text-sm font-semibold text-gray-800 sm:text-base">Student Information</h2>
+            <p className="mt-0.5 text-[11px] text-gray-500 sm:text-xs">Fields marked with * are required</p>
           </div>
 
-          {/* Full Name */}
-          <div>
-            <label
-              htmlFor="studentName"
-              className="mb-1.5 block text-sm font-medium text-gray-700"
-            >
-              Full Name <span className="text-red-400">*</span>
-            </label>
-            <input
-              id="studentName"
-              type="text"
-              value={studentName}
-              onChange={(event) => setStudentName(event.target.value)}
-              placeholder="e.g. Priya Sharma"
-              required
-              className="input-field"
-            />
-          </div>
+          <div className="p-4 space-y-4 sm:p-6 sm:space-y-5">
+            {/* Row 1: Student ID & Full Name */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5">
+              <div>
+                <label
+                  htmlFor="studentId"
+                  className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-gray-600 uppercase tracking-wider sm:mb-1.5 sm:text-xs"
+                >
+                  <Hash className="h-3 w-3" />
+                  Student ID <span className="text-red-400">*</span>
+                </label>
+                <input
+                  id="studentId"
+                  type="text"
+                  value={studentId}
+                  onChange={(event) => setStudentId(event.target.value)}
+                  placeholder="e.g. STU-2025-0042"
+                  required
+                  className="input-field"
+                />
+              </div>
 
-          {/* Division */}
-          <div>
-            <label
-              htmlFor="division"
-              className="mb-1.5 block text-sm font-medium text-gray-700"
-            >
-              Division
-            </label>
-            <input
-              id="division"
-              type="text"
-              value={division}
-              onChange={(event) => setDivision(event.target.value)}
-              placeholder="e.g. CS-A (optional)"
-              className="input-field"
-            />
-          </div>
+              <div>
+                <label
+                  htmlFor="studentName"
+                  className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                >
+                  <User className="h-3 w-3" />
+                  Full Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  id="studentName"
+                  type="text"
+                  value={studentName}
+                  onChange={(event) => setStudentName(event.target.value)}
+                  placeholder="e.g. Priya Sharma"
+                  required
+                  className="input-field"
+                />
+              </div>
+            </div>
 
-          {/* Graduation Year */}
-          <div>
-            <label
-              htmlFor="graduationYear"
-              className="mb-1.5 block text-sm font-medium text-gray-700"
-            >
-              Graduation Year
-            </label>
-            <input
-              id="graduationYear"
-              type="number"
-              value={graduationYear}
-              onChange={(event) => setGraduationYear(event.target.value)}
-              placeholder="e.g. 2027 (optional)"
-              min={2000}
-              max={2100}
-              className="input-field"
-            />
-            <p className="mt-1 text-xs text-gray-400">
-              Used for alumni cleanup — students past this year can be removed in bulk.
-            </p>
-          </div>
+            {/* Row 2: Division & Graduation Year */}
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="division"
+                  className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                >
+                  <Layers className="h-3 w-3" />
+                  Division
+                </label>
+                <input
+                  id="division"
+                  type="text"
+                  value={division}
+                  onChange={(event) => setDivision(event.target.value)}
+                  placeholder="e.g. CS-A (optional)"
+                  className="input-field"
+                />
+              </div>
 
-          {/* ── Photo Upload Zone ──────────────────────── */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Reference Photos <span className="text-red-400">*</span>
-            </label>
+              <div>
+                <label
+                  htmlFor="graduationYear"
+                  className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                >
+                  <GraduationCap className="h-3 w-3" />
+                  Graduation Year
+                </label>
+                <input
+                  id="graduationYear"
+                  type="number"
+                  value={graduationYear}
+                  onChange={(event) => setGraduationYear(event.target.value)}
+                  placeholder="e.g. 2027 (optional)"
+                  min={2000}
+                  max={2100}
+                  className="input-field"
+                />
+                <p className="mt-1.5 text-[11px] text-gray-400">
+                  Used for alumni cleanup — students past this year can be removed in bulk.
+                </p>
+              </div>
+            </div>
 
+            {/* Separator */}
+            <div className="border-t border-gray-100 pt-5">
+              <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <Camera className="h-3 w-3" />
+                Reference Photos <span className="text-red-400">*</span>
+              </h3>
+            </div>
+
+            {/* ── Photo Upload Zone ──────────────────────── */}
             <div
-              className={`rounded-xl border-2 border-dashed p-6 text-center transition-colors ${
+              className={`rounded-2xl border-2 border-dashed px-4 py-8 text-center transition-all duration-300 sm:p-8 ${
                 isDragActive
-                  ? "border-brand-400 bg-brand-50"
-                  : "border-gray-200 bg-gray-50 hover:border-brand-300"
+                  ? "border-brand-400 bg-brand-50/80 scale-[1.01]"
+                  : "border-gray-200 bg-gray-50/50 hover:border-brand-300 hover:bg-gray-50"
               }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              <ImageIcon className="mx-auto h-10 w-10 text-gray-300" />
-              <p className="mt-2 text-sm text-gray-500">
-                Drag & drop student photos here, or{" "}
+              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-blue-50 sm:h-14 sm:w-14">
+                <ImageIcon className="h-5 w-5 text-brand-400 sm:h-7 sm:w-7" />
+              </div>
+              <p className="text-xs font-medium text-gray-700 sm:text-sm">
+                <span className="hidden sm:inline">Drag & drop photos here, or </span>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="font-medium text-brand-600 hover:underline"
+                  className="font-semibold text-brand-600 hover:text-brand-700 hover:underline transition-colors"
                 >
-                  browse files
+                  <span className="sm:hidden">Tap to upload photos</span>
+                  <span className="hidden sm:inline">browse files</span>
                 </button>
               </p>
-              <p className="mt-1 text-xs text-gray-400">
-                JPG, PNG — multiple photos improve accuracy
+              <p className="mt-1.5 text-[11px] text-gray-400 sm:text-xs">
+                JPG, PNG — Multiple photos improve accuracy
               </p>
 
               <input
@@ -298,66 +336,66 @@ export default function EnrollStudentPage(): React.JSX.Element {
                 className="hidden"
               />
             </div>
-          </div>
 
-          {/* ── Image Previews ─────────────────────────── */}
-          {images.length > 0 && (
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-sm font-medium text-gray-700">
-                  {images.length} photo{images.length !== 1 ? "s" : ""} selected
-                </p>
-                <button
-                  type="button"
-                  onClick={clearAllImages}
-                  className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Remove all
-                </button>
+            {/* ── Image Previews ─────────────────────────── */}
+            {images.length > 0 && (
+              <div className="animate-fade-in">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-700">
+                    {images.length} photo{images.length !== 1 ? "s" : ""} selected
+                  </p>
+                  <button
+                    type="button"
+                    onClick={clearAllImages}
+                    className="flex items-center gap-1.5 text-xs font-medium text-red-500 hover:text-red-700 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remove all
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-5 lg:grid-cols-6">
+                  {images.map((img) => (
+                    <div key={img.id} className="group relative aspect-square animate-scale-in">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={img.previewUrl}
+                        alt={img.file.name}
+                        className="h-full w-full rounded-xl object-cover ring-1 ring-gray-200 transition-all duration-200 group-hover:ring-2 group-hover:ring-brand-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(img.id)}
+                        className="absolute -right-1 -top-1 rounded-full bg-red-500 p-1 text-white shadow-md transition-colors hover:bg-red-600 sm:-right-1.5 sm:-top-1.5 sm:hidden sm:group-hover:block"
+                        aria-label={`Remove ${img.file.name}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-
-              <div className="grid grid-cols-4 gap-3 sm:grid-cols-5 md:grid-cols-6">
-                {images.map((img) => (
-                  <div key={img.id} className="group relative aspect-square">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={img.previewUrl}
-                      alt={img.file.name}
-                      className="h-full w-full rounded-lg object-cover ring-1 ring-gray-200"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(img.id)}
-                      className="absolute -right-1.5 -top-1.5 hidden rounded-full bg-red-500 p-0.5 text-white shadow-sm transition-colors hover:bg-red-600 group-hover:block"
-                      aria-label={`Remove ${img.file.name}`}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="btn-primary w-full justify-center"
-          >
-            {isSubmitting ? (
-              <>
-                <Upload className="h-4 w-4 animate-spin" />
-                Enrolling…
-              </>
-            ) : (
-              <>
-                <UserPlus className="h-4 w-4" />
-                Enroll Student
-              </>
             )}
-          </button>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="btn-primary w-full justify-center py-3 text-base"
+            >
+              {isSubmitting ? (
+                <>
+                  <Upload className="h-5 w-5 animate-spin" />
+                  Enrolling Student…
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-5 w-5" />
+                  Enroll Student
+                </>
+              )}
+            </button>
+          </div>
         </form>
       </div>
     </div>

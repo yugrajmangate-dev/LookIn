@@ -29,10 +29,13 @@ function AuthGate({ children }: { children: React.ReactNode }): React.JSX.Elemen
 
   /* ── Authenticated → normal app layout ─────────────── */
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="ml-64 flex-1 p-6 lg:p-10 animate-fade-in">
-        {children}
+      {/* pt-14 on mobile accounts for the fixed mobile header bar; lg:pt-0 removes it on desktop */}
+      <main className="flex-1 pt-14 lg:pt-0 lg:ml-72 animate-fade-in">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+          {children}
+        </div>
       </main>
     </div>
   );

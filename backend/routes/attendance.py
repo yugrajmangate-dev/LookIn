@@ -8,10 +8,12 @@ Endpoints:
     POST /upload-video     — Accept a class video, trigger background processing.
     GET  /unknown-faces    — List all cropped unknown face images.
     GET  /daily-roster     — Fetch the attendance roster for a given date.
+    GET  /job-status/{id}  — Poll the processing status of an upload job.
 """
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import date, datetime
 from pathlib import Path
@@ -32,6 +34,7 @@ from models.schemas import (
     AttendanceRecord,
     DailyRosterResponse,
     ErrorResponse,
+    JobStatusResponse,
     ManualOverrideRequest,
     ManualOverrideResponse,
     UnknownFaceEntry,
@@ -51,7 +54,65 @@ ALLOWED_VIDEO_CONTENT_TYPES = {
     "video/quicktime",    # .mov
     "video/x-matroska",   # .mkv
     "video/webm",
+    "video/x-m4v",
+    "video/3gpp",
+    "application/octet-stream",  # fallback: some browsers send this
 }
+
+# Extension-based fallback for content-type validation
+ALLOWED_VIDEO_EXTENSIONS = {
+    ".mp4", ".mpeg", ".mpg", ".avi", ".mov",
+    ".mkv", ".webm", ".m4v", ".3gp", ".wmv",
+}
+
+
+# ──────────────────────────────────────────────
+#  Job Tracking Helpers
+# ──────────────────────────────────────────────
+
+def _load_jobs() -> dict:
+    """Load the processing jobs JSON file."""
+    jobs_path = settings.jobs_path
+    if not jobs_path.exists() or jobs_path.stat().st_size == 0:
+        return {}
+    return json.loads(jobs_path.read_text(encoding="utf-8"))
+
+
+def _save_job(job_id: str, job_data: dict) -> None:
+    """Save or update a single job in the jobs store."""
+    jobs_path = settings.jobs_path
+    jobs_path.parent.mkdir(parents=True, exist_ok=True)
+    all_jobs = _load_jobs()
+    all_jobs[job_id] = job_data
+    jobs_path.write_text(json.dumps(all_jobs, indent=2, default=str), encoding="utf-8")
+
+
+def _run_and_track(job_id: str, video_path: str) -> None:
+    """Wrapper that runs process_video and persists the result."""
+    _save_job(job_id, {
+        "status": "processing",
+        "started_at": datetime.now().isoformat(),
+        "video_filename": Path(video_path).name,
+    })
+    try:
+        result = process_video(video_path)
+        _save_job(job_id, {
+            "status": "completed",
+            "video_filename": result.video_filename,
+            "total_frames_read": result.total_frames_read,
+            "frames_processed": result.frames_processed,
+            "faces_detected": result.faces_detected,
+            "students_matched": result.students_matched,
+            "unknown_faces_saved": result.unknown_faces_saved,
+            "errors": result.errors,
+            "completed_at": (result.completed_at or datetime.now()).isoformat(),
+        })
+    except Exception as exc:
+        _save_job(job_id, {
+            "status": "failed",
+            "error": str(exc),
+            "completed_at": datetime.now().isoformat(),
+        })
 
 
 # ──────────────────────────────────────────────
@@ -92,15 +153,20 @@ async def upload_video_for_processing(
     4. Return HTTP 202 immediately.
     """
 
-    # ── Validate content type ────────────────────────────────────
-    if video.content_type not in ALLOWED_VIDEO_CONTENT_TYPES:
+    # ── Validate content type (with extension fallback) ────────
+    file_extension = (Path(video.filename).suffix.lower() if video.filename else "")
+    content_type_ok = video.content_type in ALLOWED_VIDEO_CONTENT_TYPES
+    extension_ok = file_extension in ALLOWED_VIDEO_EXTENSIONS
+
+    if not content_type_ok and not extension_ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ErrorResponse(
                 error="Invalid file type",
                 detail=(
-                    f"Content type '{video.content_type}' is not supported. "
-                    f"Allowed types: {', '.join(sorted(ALLOWED_VIDEO_CONTENT_TYPES))}."
+                    f"Content type '{video.content_type}' and extension "
+                    f"'{file_extension}' are not supported. "
+                    f"Allowed formats: MP4, AVI, MOV, MKV, WebM."
                 ),
             ).model_dump(),
         )
@@ -154,7 +220,8 @@ async def upload_video_for_processing(
         )
 
     # ── Trigger background processing ────────────────────────────
-    background_tasks.add_task(process_video, str(saved_video_path))
+    job_id = uuid.uuid4().hex[:12]
+    background_tasks.add_task(_run_and_track, job_id, str(saved_video_path))
 
     return VideoUploadResponse(
         success=True,
@@ -163,7 +230,36 @@ async def upload_video_for_processing(
             "has started in the background."
         ),
         video_filename=unique_video_filename,
+        job_id=job_id,
     )
+
+
+# ──────────────────────────────────────────────
+#  GET /job-status/{job_id}
+# ──────────────────────────────────────────────
+
+
+@router.get(
+    "/job-status/{job_id}",
+    response_model=JobStatusResponse,
+    responses={404: {"model": ErrorResponse}},
+    summary="Poll the processing status of an upload job",
+)
+async def get_job_status(job_id: str) -> JobStatusResponse:
+    """Return the current status of a background video processing job."""
+    all_jobs = _load_jobs()
+    job = all_jobs.get(job_id)
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(
+                error="Job not found",
+                detail=f"No job exists with ID '{job_id}'.",
+            ).model_dump(),
+        )
+
+    return JobStatusResponse(**job)
 
 
 # ──────────────────────────────────────────────

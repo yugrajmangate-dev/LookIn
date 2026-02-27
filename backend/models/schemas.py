@@ -127,6 +127,28 @@ class VideoUploadResponse(BaseModel):
         ...,
         description="Server-side filename of the saved video.",
     )
+    job_id: str = Field(
+        ...,
+        description="Unique job ID for polling processing status.",
+    )
+
+
+class JobStatusResponse(BaseModel):
+    """Response from the job-status polling endpoint."""
+    status: str = Field(
+        ...,
+        description="One of: processing, completed, failed.",
+    )
+    video_filename: Optional[str] = None
+    total_frames_read: int = 0
+    frames_processed: int = 0
+    faces_detected: int = 0
+    students_matched: int = 0
+    unknown_faces_saved: int = 0
+    errors: List[str] = Field(default_factory=list)
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    error: Optional[str] = None
 
 
 class UnknownFaceEntry(BaseModel):

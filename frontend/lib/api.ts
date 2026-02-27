@@ -49,6 +49,21 @@ export interface VideoUploadResponse {
   success: boolean;
   message: string;
   video_filename: string;
+  job_id: string;
+}
+
+export interface JobStatusResponse {
+  status: "processing" | "completed" | "failed";
+  video_filename?: string;
+  total_frames_read: number;
+  frames_processed: number;
+  faces_detected: number;
+  students_matched: number;
+  unknown_faces_saved: number;
+  errors: string[];
+  started_at?: string;
+  completed_at?: string;
+  error?: string;
 }
 
 export interface UnknownFaceEntry {
