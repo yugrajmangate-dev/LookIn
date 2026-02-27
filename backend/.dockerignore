@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+data/attendance_logs.csv
+data/students_biometrics.json
+data/unknown_faces/
+data/temp_videos/
+data/processing_jobs.json
+.env
+.env.local

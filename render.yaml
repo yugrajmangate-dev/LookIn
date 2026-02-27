@@ -1,0 +1,16 @@
+# render.yaml — Infrastructure-as-Code for Render.com
+# This file auto-configures the backend service when connecting the repo.
+
+services:
+  - type: web
+    name: lookin-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    branch: main
+    plan: free
+    envVars:
+      - key: CORS_ORIGINS
+        value: "http://localhost:3000,https://lookinportal.vercel.app"
+      - key: APP_ENV
+        value: "production"
