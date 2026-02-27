@@ -44,4 +44,4 @@ yarn-error.log*
 
 # ── Misc ────────────────────────────────────
 *.log
-package-lock.json
+
