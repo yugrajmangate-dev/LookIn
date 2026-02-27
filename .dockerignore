@@ -1,0 +1,13 @@
+frontend/
+.git/
+.github/
+.venv/
+node_modules/
+*.md
+backend/__pycache__/
+backend/.env
+backend/data/attendance_logs.csv
+backend/data/biometrics.json
+backend/data/unknown_faces/
+backend/data/temp_videos/
+backend/data/processing_jobs.json
