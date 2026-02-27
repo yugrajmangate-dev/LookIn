@@ -134,6 +134,7 @@ export default function LoginPage(): React.JSX.Element {
         <p className="mt-8 text-center text-xs text-gray-600">
           &copy; 2025 LookIn — I2IT Attendance System
         </p>
+        <p className="mt-1 text-center text-[10px] text-gray-700">v2.1</p>
       </div>
     </div>
   );
