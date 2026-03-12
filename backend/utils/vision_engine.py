@@ -159,6 +159,9 @@ def process_video(video_path: str) -> VideoProcessingResult:
     Returns:
         A ``VideoProcessingResult`` summarising the job.
     """
+    # Start timing for performance metrics
+    start_time = datetime.now(tz=timezone.utc)
+    
     video_file = Path(video_path)
     result = VideoProcessingResult(video_filename=video_file.name)
 
@@ -170,6 +173,8 @@ def process_video(video_path: str) -> VideoProcessingResult:
         result.completed_at = datetime.now(tz=timezone.utc)
         return result
 
+    logger.info("🎬 Starting video processing: %s", video_file.name)
+
     # ── Load known encodings ─────────────────────────────────────
     (
         known_face_encodings,
@@ -177,6 +182,15 @@ def process_video(video_path: str) -> VideoProcessingResult:
         known_student_names,
         known_divisions,
     ) = _load_known_encodings()
+    
+    if not known_face_encodings:
+        logger.warning("⚠️  No student biometrics found! All faces will be marked as unknown.")
+    else:
+        logger.info(
+            "👥 Loaded %d face encodings from %d unique students",
+            len(known_face_encodings),
+            len(set(known_student_ids))
+        )
 
     if not known_face_encodings:
         logger.warning(
@@ -288,7 +302,10 @@ def process_video(video_path: str) -> VideoProcessingResult:
 
         if not face_locations_small:
             # No faces in this frame — move on
+            result.frames_without_faces += 1
             continue
+            
+        result.frames_with_faces += 1
 
         # Scale face locations back to original frame dimensions
         # so that crops are taken from the full-resolution frame.
@@ -303,6 +320,12 @@ def process_video(video_path: str) -> VideoProcessingResult:
         ]
 
         result.faces_detected += len(face_encodings)
+        
+        logger.debug(
+            "🔍 Frame %d: found %d faces — processing...", 
+            frame_number, 
+            len(face_encodings)
+        )
 
         # ── Match each detected face ─────────────────────────────
         for face_index, (face_encoding, face_location) in enumerate(
@@ -318,6 +341,9 @@ def process_video(video_path: str) -> VideoProcessingResult:
 
                 best_match_index = int(np.argmin(face_distances))
                 best_distance = face_distances[best_match_index]
+
+                # Track all matching attempts for analytics
+                result.match_distances.append(best_distance)
 
                 if best_distance <= settings.face_match_threshold:
                     matched = True
@@ -335,14 +361,14 @@ def process_video(video_path: str) -> VideoProcessingResult:
                             already_marked_student_ids.add(matched_student_id)
                             result.students_matched += 1
                             logger.info(
-                                "Marked present: %s (%s) — distance %.3f",
+                                "✅ MATCHED: %s (%s) — distance: %.3f",
                                 matched_student_name,
                                 matched_student_id,
                                 best_distance,
                             )
                         except Exception as csv_error:
                             logger.error(
-                                "Failed to mark attendance for %s: %s",
+                                "❌ Failed to mark attendance for %s: %s",
                                 matched_student_id,
                                 csv_error,
                             )
@@ -350,6 +376,20 @@ def process_video(video_path: str) -> VideoProcessingResult:
                                 f"CSV write error for {matched_student_id}: "
                                 f"{csv_error}"
                             )
+                    else:
+                        # Already marked, just log for debugging
+                        logger.debug(
+                            "↻ Re-detected: %s (%.3f) — already marked present",
+                            matched_student_name,
+                            best_distance,
+                        )
+                else:
+                    # Face detected but distance too high
+                    logger.debug(
+                        "❓ Unknown face: distance %.3f > threshold %.3f",
+                        best_distance,
+                        settings.face_match_threshold,
+                    )
 
             if not matched:
                 # Unknown face → crop and save
@@ -361,21 +401,42 @@ def process_video(video_path: str) -> VideoProcessingResult:
                 if saved_filename:
                     global_unknown_face_counter += 1
                     result.unknown_faces_saved += 1
-                    logger.info("Saved unknown face: %s", saved_filename)
+                    logger.info("💾 Saved unknown face: %s", saved_filename)
 
     # ── Release resources ────────────────────────────────────────
     video_capture.release()
     result.completed_at = datetime.now(tz=timezone.utc)
+    
+    # Calculate total processing time
+    result.processing_time_seconds = (result.completed_at - start_time).total_seconds()
 
     logger.info(
-        "Video processing complete: %d frames read, %d processed, "
+        "🎯 Processing complete: %d frames read, %d processed (%.1fs), "
         "%d faces detected, %d students matched, %d unknowns saved.",
         result.total_frames_read,
         result.frames_processed,
+        result.processing_time_seconds,
         result.faces_detected,
         result.students_matched,
         result.unknown_faces_saved,
     )
+
+    # Log comprehensive verification statistics
+    stats = result.get_verification_stats()
+    logger.info(
+        "📊 Performance: %.1f FPS | Detection: %.1f%% | Matching: %.1f%% | Avg Distance: %.3f",
+        stats["processing_summary"]["fps_processed"],
+        stats["detection_summary"]["detection_rate"],
+        stats["matching_summary"]["match_rate"],
+        stats["matching_summary"]["avg_match_distance"] or 0.0
+    )
+    
+    if result.errors:
+        logger.warning(
+            "⚠️  Processing completed with %d errors: %s",
+            len(result.errors),
+            result.errors[:3]  # Show first 3 errors
+        )
 
     # ── Clean up the temporary video file ────────────────────────
     _cleanup_temp_video(video_file)

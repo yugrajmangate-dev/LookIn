@@ -16,9 +16,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Dict, List
+import time
+import io
 
 import face_recognition
 import numpy as np
+from PIL import Image
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
 from config import settings
@@ -31,6 +34,8 @@ from models.schemas import (
     EnrolledStudentsListResponse,
     DeleteStudentResponse,
     StudentVerifyResponse,
+    CVVerificationRequest,
+    CVVerificationResult,
 )
 from utils.storage import load_biometrics_raw, save_biometrics_raw
 
@@ -424,4 +429,179 @@ async def verify_student(student_id: str) -> StudentVerifyResponse:
         student_name=student.student_name,
         division=student.division,
     )
+
+
+# ──────────────────────────────────────────────
+#  POST /test-cv — CV Engine Verification
+# ──────────────────────────────────────────────
+
+@router.post(
+    "/test-cv",
+    response_model=CVVerificationResult,
+    summary="Test CV engine with image upload",
+    description=(
+        "Upload an image to test face detection and recognition accuracy. "
+        "Returns detailed statistics about detection performance, matching results, "
+        "and processing times. Useful for verifying CV engine configuration and accuracy."
+    ),
+)
+async def test_cv_engine(
+    test_type: str = Form(
+        default="full",
+        description="Test type: 'detection' (faces only), 'recognition' (match students), 'full' (both)"
+    ),
+    image: UploadFile = File(..., description="Test image for CV analysis")
+) -> CVVerificationResult:
+    """
+    Test the computer vision engine with a single uploaded image.
+
+    This endpoint allows administrators to verify:
+    1. Face detection accuracy and performance
+    2. Student recognition matching quality
+    3. Overall processing speed and reliability
+
+    Returns comprehensive statistics for CV system verification.
+    """
+    import time
+    from PIL import Image
+    import io
+    
+    start_time = time.time()
+    result = CVVerificationResult(
+        test_type=test_type,
+        success=False,
+        processing_time_ms=0.0,
+        faces_found=0,
+        students_matched=0,
+        unknown_faces=0
+    )
+
+    try:
+        # Validate uploaded file
+        if not image.filename:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No image file provided"
+            )
+            
+        # Read and validate image
+        image_content = await image.read()
+        if len(image_content) > settings.max_upload_size_mb * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Image too large (max {settings.max_upload_size_mb}MB)"
+            )
+
+        # Convert to numpy array for face_recognition
+        try:
+            pil_image = Image.open(io.BytesIO(image_content))
+            if pil_image.mode != 'RGB':
+                pil_image = pil_image.convert('RGB')
+            image_array = np.array(pil_image)
+        except Exception as img_error:
+            result.errors.append(f"Invalid image format: {img_error}")
+            return result
+
+        # ── PHASE 1: Face Detection ──────────────────────────────
+        detection_start = time.time()
+        
+        try:
+            face_locations = face_recognition.face_locations(
+                image_array,
+                number_of_times_to_upsample=1,
+                model="hog"  # Same as video processing
+            )
+            
+            face_encodings = face_recognition.face_encodings(
+                image_array,
+                face_locations,
+                num_jitters=1
+            )
+            
+            result.detection_time_ms = (time.time() - detection_start) * 1000
+            result.faces_found = len(face_locations)
+            result.face_locations = [[int(coord) for coord in loc] for loc in face_locations]
+            
+        except Exception as detection_error:
+            result.errors.append(f"Face detection failed: {detection_error}")
+            return result
+
+        # ── PHASE 2: Student Recognition (if requested) ───────────
+        if test_type in ["recognition", "full"] and face_encodings:
+            matching_start = time.time()
+            
+            try:
+                # Load known student encodings
+                biometrics_store = _load_biometrics_store()
+                known_encodings = []
+                known_student_data = []
+                
+                for student_id, record in biometrics_store.items():
+                    for encoding_entry in record.encodings:
+                        known_encodings.append(np.array(encoding_entry.encoding))
+                        known_student_data.append({
+                            "student_id": student_id,
+                            "name": record.student_name,
+                            "division": record.division
+                        })
+                
+                # Match each detected face
+                for i, face_encoding in enumerate(face_encodings):
+                    match_info = {
+                        "face_index": i,
+                        "location": result.face_locations[i],
+                        "matched": False,
+                        "student_id": None,
+                        "student_name": None,
+                        "distance": None,
+                        "confidence": None
+                    }
+                    
+                    if known_encodings:
+                        # Calculate distances to all known faces
+                        distances = face_recognition.face_distance(known_encodings, face_encoding)
+                        best_match_index = int(np.argmin(distances))
+                        best_distance = float(distances[best_match_index])
+                        
+                        match_info["distance"] = round(best_distance, 3)
+                        match_info["confidence"] = round((1 - best_distance) * 100, 1)
+                        
+                        if best_distance <= settings.face_match_threshold:
+                            match_info["matched"] = True
+                            match_info["student_id"] = known_student_data[best_match_index]["student_id"]
+                            match_info["student_name"] = known_student_data[best_match_index]["name"]
+                            result.students_matched += 1
+                        else:
+                            result.unknown_faces += 1
+                    else:
+                        result.unknown_faces += 1
+                    
+                    result.match_results.append(match_info)
+                
+                result.matching_time_ms = (time.time() - matching_start) * 1000
+                
+            except Exception as matching_error:
+                result.errors.append(f"Student matching failed: {matching_error}")
+        
+        elif test_type in ["recognition", "full"] and not face_encodings:
+            # No faces detected, so no matching possible
+            result.matching_time_ms = 0.0
+        
+        # ── Finalize Results ──────────────────────────────────────
+        result.processing_time_ms = (time.time() - start_time) * 1000
+        result.success = len(result.errors) == 0
+        
+        if result.faces_found > 0:
+            avg_confidence = sum(
+                match.get("confidence", 0) for match in result.match_results
+            ) / len(result.match_results) if result.match_results else 0
+            result.detection_confidence = round(avg_confidence, 1)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        result.errors.append(f"Unexpected error: {str(e)}")
+        result.processing_time_ms = (time.time() - start_time) * 1000
+
+    return result
 

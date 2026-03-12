@@ -4,7 +4,7 @@ across all API endpoints.
 """
 
 import datetime as dt
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -188,6 +188,73 @@ class VideoProcessingResult(BaseModel):
     unknown_faces_saved: int = 0
     errors: List[str] = Field(default_factory=list)
     completed_at: Optional[dt.datetime] = None
+    
+    # Enhanced verification metrics
+    detection_confidence_scores: List[float] = Field(default_factory=list)
+    match_distances: List[float] = Field(default_factory=list)
+    frames_with_faces: int = 0
+    frames_without_faces: int = 0
+    processing_time_seconds: float = 0.0
+    
+    def get_verification_stats(self) -> Dict[str, Dict[str, any]]:
+        """Return comprehensive verification statistics"""
+        return {
+            "processing_summary": {
+                "total_frames_read": self.total_frames_read,
+                "frames_processed": self.frames_processed,
+                "processing_time_seconds": round(self.processing_time_seconds, 2),
+                "fps_processed": round(self.frames_processed / max(0.1, self.processing_time_seconds), 2)
+            },
+            "detection_summary": {
+                "total_faces_detected": self.faces_detected,
+                "frames_with_faces": self.frames_with_faces,
+                "frames_without_faces": self.frames_without_faces,
+                "avg_faces_per_frame": round(self.faces_detected / max(1, self.frames_processed), 2),
+                "detection_rate": round(self.frames_with_faces / max(1, self.frames_processed) * 100, 1)
+            },
+            "matching_summary": {
+                "students_matched": self.students_matched,
+                "unknown_faces_saved": self.unknown_faces_saved,
+                "match_rate": round(self.students_matched / max(1, self.faces_detected) * 100, 1) if self.faces_detected > 0 else 0,
+                "avg_match_distance": round(sum(self.match_distances) / max(1, len(self.match_distances)), 3) if self.match_distances else None,
+                "best_match_distance": min(self.match_distances) if self.match_distances else None,
+                "worst_match_distance": max(self.match_distances) if self.match_distances else None
+            },
+            "quality_metrics": {
+                "error_count": len(self.errors),
+                "error_rate": round(len(self.errors) / max(1, self.frames_processed) * 100, 2),
+                "errors": self.errors[:5]  # Show first 5 errors
+            }
+        }
+
+
+class CVVerificationRequest(BaseModel):
+    """Request to test CV engine with uploaded image."""
+    test_type: str = Field(
+        description="Type of test: 'detection' (find faces), 'recognition' (match students), 'full' (both)"
+    )
+    
+    
+class CVVerificationResult(BaseModel):
+    """Detailed results from CV engine testing."""
+    test_type: str
+    success: bool
+    processing_time_ms: float
+    faces_found: int
+    students_matched: int
+    unknown_faces: int
+    
+    # Detailed detection results
+    face_locations: List[List[int]] = Field(default_factory=list, description="Top, right, bottom, left coordinates")
+    match_results: List[Dict[str, any]] = Field(default_factory=list)
+    detection_confidence: float = 0.0
+    
+    # Error handling
+    errors: List[str] = Field(default_factory=list)
+    
+    # Performance metrics
+    detection_time_ms: float = 0.0
+    matching_time_ms: float = 0.0
 
 
 # ──────────────────────────────────────────────
