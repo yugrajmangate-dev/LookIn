@@ -45,6 +45,7 @@ from models.schemas import (
     VideoUploadResponse,
 )
 from utils.csv_handler import fetch_daily_roster, manual_override_attendance
+from utils.storage import list_unknown_face_images, load_attendance_df
 from utils.vision_engine import process_video
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
@@ -283,41 +284,18 @@ async def get_job_status(job_id: str) -> JobStatusResponse:
 )
 async def list_unknown_faces() -> UnknownFacesListResponse:
     """
-    Scan the ``unknown_faces`` directory and return metadata for
-    each image found.
+    Return metadata for every unknown-face image, sourced from
+    Supabase Storage (production) or the local filesystem (dev).
     """
-    unknown_faces_directory = settings.unknown_faces_dir
-
-    if not unknown_faces_directory.exists():
-        return UnknownFacesListResponse(
-            success=True,
-            total_count=0,
-            faces=[],
+    images = list_unknown_face_images()
+    face_entries: List[UnknownFaceEntry] = [
+        UnknownFaceEntry(
+            filename=img["filename"],
+            image_url=img["image_url"],
+            detected_at=_extract_timestamp_from_filename(img["filename"]),
         )
-
-    allowed_image_extensions = {".jpg", ".jpeg", ".png", ".bmp"}
-
-    face_entries: List[UnknownFaceEntry] = []
-
-    # Sort by filename (which includes timestamp) for chronological order
-    sorted_files = sorted(unknown_faces_directory.iterdir())
-
-    for file_path in sorted_files:
-        if (
-            file_path.is_file()
-            and file_path.suffix.lower() in allowed_image_extensions
-        ):
-            # Extract timestamp from filename pattern:
-            #   unknown_YYYYMMDD_HHMMSS_<index>.jpg
-            detected_at_string = _extract_timestamp_from_filename(file_path.name)
-
-            face_entries.append(
-                UnknownFaceEntry(
-                    filename=file_path.name,
-                    image_url=f"/static/unknown_faces/{file_path.name}",
-                    detected_at=detected_at_string,
-                )
-            )
+        for img in images
+    ]
 
     return UnknownFacesListResponse(
         success=True,
@@ -487,22 +465,7 @@ async def export_attendance_csv(
     ),
 ) -> StreamingResponse:
     """Stream the attendance CSV to the browser as a file download."""
-    import pandas as pd
-    from config import settings as _settings
-
-    csv_path = _settings.attendance_csv_path
-    if not csv_path.exists() or csv_path.stat().st_size == 0:
-        # Return empty CSV with headers
-        output = io.StringIO()
-        output.write("student_id,student_name,division,date,time,status\n")
-        output.seek(0)
-        return StreamingResponse(
-            iter([output.getvalue()]),
-            media_type="text/csv",
-            headers={"Content-Disposition": "attachment; filename=attendance_logs.csv"},
-        )
-
-    df = pd.read_csv(csv_path, dtype=str)
+    df = load_attendance_df()
 
     if target_date:
         try:

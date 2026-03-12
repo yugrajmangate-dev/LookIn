@@ -11,45 +11,29 @@ from being matched during video processing.
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Dict, List
 
-from config import settings
 from models.schemas import AlumniCleanupResult, StudentBiometricRecord
+from utils.storage import load_biometrics_raw, save_biometrics_raw
 
 logger = logging.getLogger("alumni_cleanup")
 logger.setLevel(logging.INFO)
 
 
 def _load_biometrics_store() -> Dict[str, StudentBiometricRecord]:
-    """Load the biometrics JSON file and return a dict keyed by student_id."""
-    biometrics_path = settings.biometrics_path
-    biometrics_path.parent.mkdir(parents=True, exist_ok=True)
-
-    if not biometrics_path.exists() or biometrics_path.stat().st_size == 0:
-        return {}
-
-    raw_data: dict = json.loads(biometrics_path.read_text(encoding="utf-8"))
-
-    store: Dict[str, StudentBiometricRecord] = {}
-    for student_id, record_dict in raw_data.items():
-        store[student_id] = StudentBiometricRecord(**record_dict)
-
-    return store
+    """Load the biometrics store via the storage layer (Supabase or local)."""
+    raw_data = load_biometrics_raw()
+    return {
+        sid: StudentBiometricRecord(**rec)
+        for sid, rec in raw_data.items()
+    }
 
 
 def _save_biometrics_store(store: Dict[str, StudentBiometricRecord]) -> None:
-    """Persist the biometrics store to JSON."""
-    biometrics_path = settings.biometrics_path
-
-    serialisable: dict = {}
-    for student_id, record in store.items():
-        serialisable[student_id] = record.model_dump(mode="json")
-
-    biometrics_path.write_text(
-        json.dumps(serialisable, indent=2, default=str),
-        encoding="utf-8",
+    """Persist the biometrics store via the storage layer (Supabase or local)."""
+    save_biometrics_raw(
+        {sid: record.model_dump(mode="json") for sid, record in store.items()}
     )
 
 

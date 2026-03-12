@@ -38,6 +38,7 @@ from models.schemas import (
     VideoProcessingResult,
 )
 from utils.csv_handler import mark_student_present
+from utils.storage import load_biometrics_raw, save_unknown_face_image
 
 logger = logging.getLogger("vision_engine")
 logger.setLevel(logging.INFO)
@@ -63,19 +64,8 @@ def _load_known_encodings() -> Tuple[
     """
     Load the biometric store and flatten every encoding into
     parallel lists for efficient batch comparison.
-
-    Returns:
-        known_face_encodings  – list of 128-d numpy arrays
-        known_student_ids     – parallel list of student IDs
-        known_student_names   – parallel list of student names
-        known_divisions       – parallel list of divisions (may be None)
     """
-    biometrics_path = settings.biometrics_path
-
-    if not biometrics_path.exists() or biometrics_path.stat().st_size == 0:
-        return [], [], [], []
-
-    raw_data: dict = json.loads(biometrics_path.read_text(encoding="utf-8"))
+    raw_data = load_biometrics_raw()
 
     known_face_encodings: List[np.ndarray] = []
     known_student_ids: List[str] = []
@@ -108,48 +98,44 @@ def _load_known_encodings() -> Tuple[
 def _save_unknown_face(
     frame_rgb: np.ndarray,
     face_location: Tuple[int, int, int, int],
-    output_directory: Path,
     face_index: int,
 ) -> Optional[str]:
     """
-    Crop the face region from the frame using NumPy slicing and save
-    it as a JPEG to *output_directory*.
+    Crop the face region from the frame, encode as JPEG, and persist it
+    via the storage layer (Supabase or local filesystem).
 
-    ``face_location`` is in ``face_recognition``'s format:
-        (top, right, bottom, left)
-
-    Returns:
-        The filename of the saved image, or ``None`` if saving fails.
+    Returns the filename on success, or ``None`` on failure.
     """
     top, right, bottom, left = face_location
-
-    # Ensure coordinates are within frame bounds
     height, width = frame_rgb.shape[:2]
     top = max(0, top)
     left = max(0, left)
     bottom = min(height, bottom)
     right = min(width, right)
 
-    # NumPy slicing to crop the face (per ARCHITECTURE.md)
     cropped_face_rgb = frame_rgb[top:bottom, left:right]
-
     if cropped_face_rgb.size == 0:
         logger.warning("Cropped face has zero area — skipping save.")
         return None
 
-    # Convert RGB → BGR for OpenCV imwrite
     cropped_face_bgr = cv2.cvtColor(cropped_face_rgb, cv2.COLOR_RGB2BGR)
+
+    success, encoded_buf = cv2.imencode(
+        ".jpg", cropped_face_bgr, [cv2.IMWRITE_JPEG_QUALITY, 90]
+    )
+    if not success:
+        logger.error("cv2.imencode failed for face index %d", face_index)
+        return None
 
     timestamp_string = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"unknown_{timestamp_string}_{face_index}.jpg"
-    output_path = output_directory / filename
 
-    success = cv2.imwrite(str(output_path), cropped_face_bgr)
-    if not success:
-        logger.error("cv2.imwrite failed for %s", output_path)
+    try:
+        save_unknown_face_image(filename, encoded_buf.tobytes())
+        return filename
+    except Exception as save_error:
+        logger.error("Failed to save unknown face %s: %s", filename, save_error)
         return None
-
-    return filename
 
 
 # ──────────────────────────────────────────────
@@ -235,9 +221,8 @@ def process_video(video_path: str) -> VideoProcessingResult:
         frame_skip,
     )
 
-    # ── Prepare output directory ─────────────────────────────────
-    unknown_faces_output_dir = settings.unknown_faces_dir
-    unknown_faces_output_dir.mkdir(parents=True, exist_ok=True)
+    # ── Prepare output directory (local dev only) ────────────────
+    settings.unknown_faces_dir.mkdir(parents=True, exist_ok=True)
 
     # Track which students have already been marked present
     # so we don't call mark_student_present() hundreds of times
@@ -371,7 +356,6 @@ def process_video(video_path: str) -> VideoProcessingResult:
                 saved_filename = _save_unknown_face(
                     frame_rgb=frame_rgb,
                     face_location=face_location,
-                    output_directory=unknown_faces_output_dir,
                     face_index=global_unknown_face_counter,
                 )
                 if saved_filename:

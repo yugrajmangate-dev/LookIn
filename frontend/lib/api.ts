@@ -18,9 +18,14 @@ export function apiUrl(path: string): string {
 
 /**
  * Construct a full static-file URL for backend-hosted assets.
+ * If `path` is already an absolute URL (e.g. a Supabase CDN link),
+ * it is returned unchanged.
  * @example staticUrl("/static/unknown_faces/unknown_20250610_143025_0.jpg")
  */
 export function staticUrl(path: string): string {
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    return path; // already an absolute URL (Supabase CDN, etc.)
+  }
   return `${API_BASE_URL}${path}`;
 }
 

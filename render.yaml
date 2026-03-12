@@ -34,6 +34,14 @@ services:
         value: "2"
       - key: CURRENT_ACADEMIC_YEAR
         value: "2026"
+      # ── Supabase persistent storage (Option B — free tier) ──────────────────
+      # Create a free project at https://supabase.com, then fill in these values.
+      # Buckets needed: "lookin-data" (private) and "unknown-faces" (public).
+      # Use the SERVICE ROLE key (not the anon key) — keep it secret.
+      - key: SUPABASE_URL
+        value: ""   # e.g. https://xxxxxxxxxxxx.supabase.co
+      - key: SUPABASE_SERVICE_KEY
+        value: ""   # Supabase service_role JWT
 
   # NOTE: Render's free tier uses an ephemeral filesystem.
   # Data (attendance CSV, face encodings, unknown faces) will be LOST

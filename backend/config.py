@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     current_academic_year: int = 2026
     cors_origins: str = "http://localhost:3000,https://lookinportal.vercel.app"
 
+    # ── Supabase persistent storage (production) ──────────
+    # Leave blank for local development (falls back to filesystem).
+    # In production (Render), set both via environment variables.
+    supabase_url: str = ""
+    supabase_service_key: str = ""
+
     @property
     def data_path(self) -> Path:
         """Return the absolute path to the data directory."""
