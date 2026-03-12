@@ -153,3 +153,27 @@ export interface DeleteStudentResponse {
   message: string;
   student_id: string;
 }
+
+// ──────────────────────────────────────────────
+//  Student Portal (Phase 6)
+// ──────────────────────────────────────────────
+
+export interface StudentAttendanceHistoryResponse {
+  success: boolean;
+  student_id: string;
+  student_name: string;
+  division: string | null;
+  total_records: number;
+  present_count: number;
+  absent_count: number;
+  attendance_percentage: number;
+  records: AttendanceRecord[];
+}
+
+export interface StudentVerifyResponse {
+  success: boolean;
+  exists: boolean;
+  student_id: string;
+  student_name: string | null;
+  division: string | null;
+}

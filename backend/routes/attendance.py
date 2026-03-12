@@ -40,12 +40,13 @@ from models.schemas import (
     JobStatusResponse,
     ManualOverrideRequest,
     ManualOverrideResponse,
+    StudentAttendanceHistoryResponse,
     UnknownFaceEntry,
     UnknownFacesListResponse,
     VideoUploadResponse,
 )
 from utils.csv_handler import fetch_daily_roster, manual_override_attendance
-from utils.storage import list_unknown_face_images, load_attendance_df
+from utils.storage import list_unknown_face_images, load_attendance_df, load_biometrics_raw
 from utils.vision_engine import process_video
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
@@ -491,4 +492,106 @@ async def export_attendance_csv(
         iter([output.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+# ──────────────────────────────────────────────
+#  GET /student/{student_id}  (Phase 6 — Student Portal)
+# ──────────────────────────────────────────────
+
+
+@router.get(
+    "/student/{student_id}",
+    response_model=StudentAttendanceHistoryResponse,
+    responses={404: {"model": ErrorResponse}},
+    summary="Get full attendance history for a specific student",
+    description=(
+        "Returns all attendance records for a given student across all dates. "
+        "Used by the student portal to display their personal attendance history."
+    ),
+)
+async def get_student_attendance(student_id: str) -> StudentAttendanceHistoryResponse:
+    """
+    Fetch the complete attendance history for a single student.
+
+    The student must exist in the biometrics store for name/division lookup.
+    Returns attendance percentage and all records sorted by date descending.
+    """
+    # Verify student exists in biometrics
+    biometrics = load_biometrics_raw()
+    student_data = biometrics.get(student_id)
+
+    if not student_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(
+                error="Student not found",
+                detail=f"No student with ID '{student_id}' is enrolled in the system.",
+            ).model_dump(),
+        )
+
+    student_name = student_data.get("student_name", "Unknown")
+    division = student_data.get("division")
+
+    # Load attendance and filter by student_id
+    df = load_attendance_df()
+
+    if df.empty:
+        return StudentAttendanceHistoryResponse(
+            student_id=student_id,
+            student_name=student_name,
+            division=division,
+            total_records=0,
+            present_count=0,
+            absent_count=0,
+            attendance_percentage=0.0,
+            records=[],
+        )
+
+    student_df = df[df["student_id"] == student_id].copy()
+
+    if student_df.empty:
+        return StudentAttendanceHistoryResponse(
+            student_id=student_id,
+            student_name=student_name,
+            division=division,
+            total_records=0,
+            present_count=0,
+            absent_count=0,
+            attendance_percentage=0.0,
+            records=[],
+        )
+
+    # Sort by date descending (most recent first)
+    student_df = student_df.sort_values(by="date", ascending=False)
+
+    # Calculate stats
+    total_records = len(student_df)
+    present_count = len(student_df[student_df["status"].str.lower() == "present"])
+    absent_count = total_records - present_count
+    attendance_percentage = (present_count / total_records * 100) if total_records > 0 else 0.0
+
+    # Convert to AttendanceRecord objects
+    records: List[AttendanceRecord] = []
+    for _, row in student_df.iterrows():
+        records.append(
+            AttendanceRecord(
+                student_id=row["student_id"],
+                student_name=row["student_name"],
+                division=row.get("division"),
+                date=date.fromisoformat(row["date"]),
+                time=row["time"],
+                status=row["status"],
+            )
+        )
+
+    return StudentAttendanceHistoryResponse(
+        student_id=student_id,
+        student_name=student_name,
+        division=division,
+        total_records=total_records,
+        present_count=present_count,
+        absent_count=absent_count,
+        attendance_percentage=round(attendance_percentage, 1),
+        records=records,
     )

@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import {
@@ -16,6 +16,8 @@ import {
   Menu,
   X,
   ShieldCheck,
+  GraduationCap,
+  ClipboardList,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -31,7 +33,8 @@ interface NavigationItem {
   description: string;
 }
 
-const NAVIGATION_ITEMS: NavigationItem[] = [
+/** Navigation items for admin/faculty users */
+const ADMIN_NAVIGATION_ITEMS: NavigationItem[] = [
   {
     label: "Daily Roster",
     href: "/",
@@ -64,10 +67,26 @@ const NAVIGATION_ITEMS: NavigationItem[] = [
   },
 ];
 
+/** Navigation items for student users */
+const STUDENT_NAVIGATION_ITEMS: NavigationItem[] = [
+  {
+    label: "My Attendance",
+    href: "/student",
+    icon: ClipboardList,
+    description: "View your records",
+  },
+];
+
 export default function Sidebar(): React.JSX.Element {
   const pathname = usePathname();
-  const { logout } = useAuth();
+  const router = useRouter();
+  const { logout, role, studentInfo } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Select nav items based on role
+  const navigationItems = useMemo(() => {
+    return role === "student" ? STUDENT_NAVIGATION_ITEMS : ADMIN_NAVIGATION_ITEMS;
+  }, [role]);
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -86,6 +105,12 @@ export default function Sidebar(): React.JSX.Element {
     };
   }, [mobileOpen]);
 
+  // Handle logout and redirect
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
+  };
+
   const sidebarContent = (
     <>
       {/* ── Brand Header ─────────────────────────────── */}
@@ -95,7 +120,9 @@ export default function Sidebar(): React.JSX.Element {
         </div>
         <div className="min-w-0 flex-1">
           <span className="text-base font-bold tracking-tight lg:text-lg">LookIn</span>
-          <p className="text-[10px] font-medium text-slate-400 lg:text-[11px]">Attendance System</p>
+          <p className="text-[10px] font-medium text-slate-400 lg:text-[11px]">
+            {role === "student" ? "Student Portal" : "Attendance System"}
+          </p>
         </div>
         {/* Mobile close button */}
         <button
@@ -108,15 +135,35 @@ export default function Sidebar(): React.JSX.Element {
         </button>
       </div>
 
+      {/* ── User Info (for students) ─────────────────── */}
+      {role === "student" && studentInfo && (
+        <div className="border-b border-white/[0.06] px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500/20">
+              <GraduationCap className="h-5 w-5 text-brand-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-white">
+                {studentInfo.student_name}
+              </p>
+              <p className="truncate text-xs text-slate-400">
+                {studentInfo.student_id}
+                {studentInfo.division && ` • ${studentInfo.division}`}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Navigation Links ─────────────────────────── */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4 lg:py-5">
         <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 lg:mb-3 lg:text-[11px]">
           Navigation
         </p>
-        {NAVIGATION_ITEMS.map((item) => {
+        {navigationItems.map((item) => {
           const isActive =
             pathname === item.href ||
-            (item.href !== "/" && pathname.startsWith(item.href));
+            (item.href !== "/" && item.href !== "/student" && pathname.startsWith(item.href));
 
           return (
             <Link
@@ -162,7 +209,7 @@ export default function Sidebar(): React.JSX.Element {
       {/* ── Footer with Logout ────────────────────────── */}
       <div className="border-t border-white/[0.06] px-3 py-3 space-y-2 lg:py-4 lg:space-y-3">
         <button
-          onClick={logout}
+          onClick={handleLogout}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400 lg:py-3"
         >
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.04] lg:h-9 lg:w-9">

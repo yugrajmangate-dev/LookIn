@@ -294,3 +294,32 @@ class DeleteStudentResponse(BaseModel):
     success: bool = True
     message: str
     student_id: str
+
+
+# ──────────────────────────────────────────────
+#  Student Portal (Phase 6)
+# ──────────────────────────────────────────────
+
+class StudentAttendanceHistoryResponse(BaseModel):
+    """Response containing the full attendance history for a specific student."""
+    success: bool = True
+    student_id: str
+    student_name: str
+    division: Optional[str] = None
+    total_records: int
+    present_count: int
+    absent_count: int
+    attendance_percentage: float = Field(
+        ...,
+        description="Percentage of days marked present.",
+    )
+    records: List[AttendanceRecord]
+
+
+class StudentVerifyResponse(BaseModel):
+    """Response verifying whether a student exists in the biometrics store."""
+    success: bool = True
+    exists: bool
+    student_id: str
+    student_name: Optional[str] = None
+    division: Optional[str] = None

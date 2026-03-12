@@ -30,6 +30,7 @@ from models.schemas import (
     EnrolledStudentSummary,
     EnrolledStudentsListResponse,
     DeleteStudentResponse,
+    StudentVerifyResponse,
 )
 from utils.storage import load_biometrics_raw, save_biometrics_raw
 
@@ -374,5 +375,53 @@ async def delete_student(student_id: str) -> DeleteStudentResponse:
         success=True,
         message=f"Student '{student_name}' ({student_id}) has been removed.",
         student_id=student_id,
+    )
+
+
+# ──────────────────────────────────────────────
+#  GET /verify/{student_id}  (Phase 6 — Student Login)
+# ──────────────────────────────────────────────
+
+@router.get(
+    "/verify/{student_id}",
+    response_model=StudentVerifyResponse,
+    summary="Verify if a student is enrolled",
+    description=(
+        "Checks whether a student with the given ID exists in the biometrics store. "
+        "Used by the student login flow to validate credentials."
+    ),
+)
+async def verify_student(student_id: str) -> StudentVerifyResponse:
+    """
+    Check if a student exists in the biometrics store.
+
+    This endpoint is used by the student portal login to verify
+    that a student ID is valid before granting access.
+    """
+    try:
+        biometrics_store = _load_biometrics_store()
+    except Exception:
+        # On error, assume student doesn't exist
+        return StudentVerifyResponse(
+            exists=False,
+            student_id=student_id,
+            student_name=None,
+            division=None,
+        )
+
+    if student_id not in biometrics_store:
+        return StudentVerifyResponse(
+            exists=False,
+            student_id=student_id,
+            student_name=None,
+            division=None,
+        )
+
+    student = biometrics_store[student_id]
+    return StudentVerifyResponse(
+        exists=True,
+        student_id=student_id,
+        student_name=student.student_name,
+        division=student.division,
     )
 
