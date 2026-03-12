@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
         port: "8000",
         pathname: "/static/**",
       },
+      {
+        // Render.com deployed backend  (*.onrender.com)
+        protocol: "https",
+        hostname: "**.onrender.com",
+        pathname: "/static/**",
+      },
     ],
   },
 };

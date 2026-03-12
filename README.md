@@ -77,7 +77,7 @@ MAX_UPLOAD_SIZE_MB=50
 UNKNOWN_FACES_DIRNAME=unknown_faces
 TEMP_VIDEO_DIRNAME=temp_videos
 FACE_MATCH_THRESHOLD=0.5
-FRAMES_PER_SECOND_TO_PROCESS=1
+FRAMES_PER_SECOND_TO_PROCESS=2
 CURRENT_ACADEMIC_YEAR=2026
 ```
 
@@ -112,15 +112,49 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | Username | `i2it` |
 | Password | `student` |
 
+---
+
+## Deployment
+
+### Frontend → Vercel
+
+1. Push this repository to GitHub.
+2. Go to [vercel.com](https://vercel.com) → **New Project** → import your repo.
+3. Set **Root Directory** to `frontend`.
+4. Add **Environment Variable** in Vercel dashboard:
+   - `NEXT_PUBLIC_API_URL` → your Render backend URL (e.g. `https://lookin-api.onrender.com`)
+5. Click **Deploy**. Every `git push` to `main` will auto-redeploy.
+
+### Backend → Render.com
+
+1. Go to [render.com](https://render.com) → **New Web Service** → connect your GitHub repo.
+2. Render will detect `render.yaml` automatically and configure the service.
+3. After the first deploy, copy the service URL (e.g. `https://lookin-api.onrender.com`).
+4. Paste that URL into Vercel's `NEXT_PUBLIC_API_URL` environment variable.
+5. Also update `CORS_ORIGINS` in Render's environment settings to include your Vercel URL.
+
+> **Important — Data Persistence on Free Tier:**  
+> Render's free tier uses an **ephemeral filesystem**. All data (attendance CSV,
+> face encodings, unknown face images) is **wiped on every redeploy**.  
+> To avoid data loss in production:
+> - Upgrade to a Render paid plan and attach a **Persistent Disk** mounted at `/app/data`.
+> - Or migrate data storage to an external service (S3, Supabase, PostgreSQL).
+
+---
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/` | Health check |
 | POST | `/api/enroll/` | Enroll a student with face images |
+| GET | `/api/enroll/list` | List all enrolled students |
+| DELETE | `/api/enroll/{student_id}` | Remove a student's biometric data |
 | POST | `/api/attendance/upload-video` | Upload classroom video for processing |
+| GET | `/api/attendance/job-status/{id}` | Poll background processing job status |
 | GET | `/api/attendance/unknown-faces` | List unidentified face crops |
 | GET | `/api/attendance/daily-roster?date=YYYY-MM-DD` | Get attendance for a date |
+| GET | `/api/attendance/export-csv?date=YYYY-MM-DD` | Download attendance CSV |
 | POST | `/api/attendance/manual-override` | Manually mark attendance |
 | POST | `/api/admin/alumni-cleanup` | Remove graduated student data |
 

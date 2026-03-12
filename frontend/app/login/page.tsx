@@ -17,15 +17,12 @@ export default function LoginPage(): React.JSX.Element {
     setError(null);
     setIsSubmitting(true);
 
-    // Small delay for UX feel
-    setTimeout(() => {
-      const result = login(username, password);
-      if (result) {
-        setError(result);
-      }
-      // On success the AuthProvider flips isAuthenticated → layout re-renders
+    const result = login(username, password);
+    if (result) {
+      setError(result);
       setIsSubmitting(false);
-    }, 400);
+    }
+    // On success the AuthProvider flips isAuthenticated → layout re-renders
   };
 
   return (
@@ -118,12 +115,12 @@ export default function LoginPage(): React.JSX.Element {
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Signing in…
+                  Logging in…
                 </>
               ) : (
                 <>
                   <LogIn className="h-4 w-4" />
-                  Sign In
+                  Log In
                 </>
               )}
             </button>
@@ -132,7 +129,7 @@ export default function LoginPage(): React.JSX.Element {
 
         {/* Footer */}
         <p className="mt-8 text-center text-xs text-gray-600">
-          &copy; 2025 LookIn — I2IT Attendance System
+          &copy; 2026 LookIn — I2IT Attendance System
         </p>
         <p className="mt-1 text-center text-[10px] text-gray-700">v2.1</p>
       </div>

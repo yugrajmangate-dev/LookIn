@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -54,6 +55,12 @@ const NAVIGATION_ITEMS: NavigationItem[] = [
     href: "/enroll",
     icon: UserPlus,
     description: "Register new faces",
+  },
+  {
+    label: "Admin Panel",
+    href: "/admin",
+    icon: ShieldCheck,
+    description: "Manage & cleanup",
   },
 ];
 
@@ -161,10 +168,10 @@ export default function Sidebar(): React.JSX.Element {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.04] lg:h-9 lg:w-9">
             <LogOut className="h-4 w-4 flex-shrink-0 lg:h-[18px] lg:w-[18px]" />
           </div>
-          Sign Out
+          Log Out
         </button>
         <p className="px-3 text-[10px] text-slate-600 lg:text-[11px]">
-          &copy; 2025 LookIn &middot; I2IT
+          &copy; 2026 LookIn &middot; I2IT
         </p>
       </div>
     </>

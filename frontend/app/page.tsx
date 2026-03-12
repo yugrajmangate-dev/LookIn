@@ -12,6 +12,7 @@ import {
   UserX,
   Clock,
   Search,
+  Download,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import StatusBadge from "@/components/StatusBadge";
@@ -226,6 +227,17 @@ export default function DailyRosterPage(): React.JSX.Element {
           />
           <span className="hidden sm:inline">Refresh</span>
         </button>
+
+        {/* Export CSV */}
+        <a
+          href={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/attendance/export-csv?date=${selectedDate}`}
+          download
+          className="btn-secondary"
+          aria-label="Export attendance as CSV"
+        >
+          <Download className="h-4 w-4" />
+          <span className="hidden sm:inline">Export CSV</span>
+        </a>
       </PageHeader>
 
       {/* ── Date Display ───────────────────────────── */}

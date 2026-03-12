@@ -123,3 +123,28 @@ export interface AlumniCleanupResult {
   removed_count: number;
   removed_student_ids: string[];
 }
+
+// ──────────────────────────────────────────────
+//  Enrolled Students (Admin management)
+// ──────────────────────────────────────────────
+
+export interface EnrolledStudentSummary {
+  student_id: string;
+  student_name: string;
+  division: string | null;
+  graduation_year: number | null;
+  encoding_count: number;
+  registered_at: string | null;
+}
+
+export interface EnrolledStudentsListResponse {
+  success: boolean;
+  total_count: number;
+  students: EnrolledStudentSummary[];
+}
+
+export interface DeleteStudentResponse {
+  success: boolean;
+  message: string;
+  student_id: string;
+}

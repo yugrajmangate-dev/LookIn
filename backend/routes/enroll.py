@@ -28,6 +28,9 @@ from models.schemas import (
     EnrollmentResponse,
     ErrorResponse,
     StudentBiometricRecord,
+    EnrolledStudentSummary,
+    EnrolledStudentsListResponse,
+    DeleteStudentResponse,
 )
 
 router = APIRouter(prefix="/enroll", tags=["Enrollment"])
@@ -282,3 +285,113 @@ async def enroll_student(
         student_id=student_id,
         encodings_stored=total_encodings,
     )
+
+
+# ──────────────────────────────────────────────
+#  GET /list
+# ──────────────────────────────────────────────
+
+@router.get(
+    "/list",
+    response_model=EnrolledStudentsListResponse,
+    responses={500: {"model": ErrorResponse}},
+    summary="List all enrolled students",
+    description="Returns a summary of every student in the biometrics store.",
+)
+async def list_enrolled_students() -> EnrolledStudentsListResponse:
+    """Return a lightweight summary of every enrolled student."""
+    try:
+        biometrics_store = _load_biometrics_store()
+    except Exception as load_error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="Storage read error",
+                detail=f"Failed to load biometric store: {load_error}",
+            ).model_dump(),
+        )
+
+    summaries: List[EnrolledStudentSummary] = []
+    for record in biometrics_store.values():
+        first_registered = (
+            record.encodings[0].registered_at if record.encodings else None
+        )
+        summaries.append(
+            EnrolledStudentSummary(
+                student_id=record.student_id,
+                student_name=record.student_name,
+                division=record.division,
+                graduation_year=record.graduation_year,
+                encoding_count=len(record.encodings),
+                registered_at=first_registered,
+            )
+        )
+
+    summaries.sort(key=lambda s: s.student_name.lower())
+
+    return EnrolledStudentsListResponse(
+        success=True,
+        total_count=len(summaries),
+        students=summaries,
+    )
+
+
+# ──────────────────────────────────────────────
+#  DELETE /{student_id}
+# ──────────────────────────────────────────────
+
+@router.delete(
+    "/{student_id}",
+    response_model=DeleteStudentResponse,
+    responses={
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="Remove a student's biometric data",
+    description=(
+        "Permanently deletes all face encodings for the specified student. "
+        "This action is irreversible."
+    ),
+)
+async def delete_student(student_id: str) -> DeleteStudentResponse:
+    """Delete a single student's biometric record by student_id."""
+    try:
+        biometrics_store = _load_biometrics_store()
+    except Exception as load_error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="Storage read error",
+                detail=f"Failed to load biometric store: {load_error}",
+            ).model_dump(),
+        )
+
+    if student_id not in biometrics_store:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(
+                error="Student not found",
+                detail=f"No student with ID '{student_id}' is enrolled.",
+            ).model_dump(),
+        )
+
+    student_name = biometrics_store[student_id].student_name
+    del biometrics_store[student_id]
+
+    try:
+        _save_biometrics_store(biometrics_store)
+    except Exception as save_error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="Storage write error",
+                detail=f"Failed to save biometric store: {save_error}",
+            ).model_dump(),
+        )
+
+    return DeleteStudentResponse(
+        success=True,
+        message=f"Student '{student_name}' ({student_id}) has been removed.",
+        student_id=student_id,
+    )
+

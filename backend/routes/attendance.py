@@ -19,6 +19,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import List, Optional
 
+import io
+
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -28,6 +30,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import StreamingResponse
 
 from config import settings
 from models.schemas import (
@@ -458,4 +461,71 @@ async def manual_attendance_override(
             f"marked as {payload.status} for {payload.date}."
         ),
         record=record,
+    )
+
+
+# ──────────────────────────────────────────────
+#  GET /export-csv
+# ──────────────────────────────────────────────
+
+
+@router.get(
+    "/export-csv",
+    summary="Download attendance records as a CSV file",
+    description=(
+        "Returns the full attendance log (or a single-date slice) as a "
+        "downloadable CSV file. Optionally filter by date using the "
+        "?date=YYYY-MM-DD query parameter."
+    ),
+    responses={400: {"model": ErrorResponse}},
+)
+async def export_attendance_csv(
+    target_date: Optional[str] = Query(
+        default=None,
+        alias="date",
+        description="Filter to a specific date (YYYY-MM-DD). Omit for all records.",
+    ),
+) -> StreamingResponse:
+    """Stream the attendance CSV to the browser as a file download."""
+    import pandas as pd
+    from config import settings as _settings
+
+    csv_path = _settings.attendance_csv_path
+    if not csv_path.exists() or csv_path.stat().st_size == 0:
+        # Return empty CSV with headers
+        output = io.StringIO()
+        output.write("student_id,student_name,division,date,time,status\n")
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=attendance_logs.csv"},
+        )
+
+    df = pd.read_csv(csv_path, dtype=str)
+
+    if target_date:
+        try:
+            date.fromisoformat(target_date)  # validate format
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse(
+                    error="Invalid date format",
+                    detail=f"'{target_date}' is not valid. Use YYYY-MM-DD.",
+                ).model_dump(),
+            )
+        df = df[df["date"] == target_date]
+        filename = f"attendance_{target_date}.csv"
+    else:
+        filename = "attendance_logs.csv"
+
+    output = io.StringIO()
+    df.to_csv(output, index=False)
+    output.seek(0)
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

@@ -14,3 +14,29 @@ services:
         value: "http://localhost:3000,https://lookinportal.vercel.app"
       - key: APP_ENV
         value: "production"
+      - key: DATA_DIR
+        value: "data"
+      - key: BIOMETRICS_FILE
+        value: "students_biometrics.json"
+      - key: ATTENDANCE_CSV
+        value: "attendance_logs.csv"
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "100"
+      - key: UNKNOWN_FACES_DIRNAME
+        value: "unknown_faces"
+      - key: TEMP_VIDEO_DIRNAME
+        value: "temp_videos"
+      - key: JOBS_FILE
+        value: "processing_jobs.json"
+      - key: FACE_MATCH_THRESHOLD
+        value: "0.5"
+      - key: FRAMES_PER_SECOND_TO_PROCESS
+        value: "2"
+      - key: CURRENT_ACADEMIC_YEAR
+        value: "2026"
+
+  # NOTE: Render's free tier uses an ephemeral filesystem.
+  # Data (attendance CSV, face encodings, unknown faces) will be LOST
+  # on each redeploy or restart. To persist data, either:
+  #   1. Upgrade to a paid Render plan and add a persistent disk (mount at /app/data)
+  #   2. Migrate storage to an external service (e.g. S3, Supabase, PostgreSQL)

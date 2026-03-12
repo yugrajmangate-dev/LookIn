@@ -42,6 +42,12 @@ from utils.csv_handler import mark_student_present
 logger = logging.getLogger("vision_engine")
 logger.setLevel(logging.INFO)
 
+# Scale factor applied to each frame before face detection.
+# Processing at 1/4 size gives a 16× speedup in pixel work while
+# still finding faces reliably in typical classroom footage.
+DETECTION_SCALE: float = 0.25
+DETECTION_SCALE_INV: int = int(1 / DETECTION_SCALE)  # 4
+
 
 # ──────────────────────────────────────────────
 #  Biometrics Loader
@@ -261,11 +267,28 @@ def process_video(video_path: str) -> VideoProcessingResult:
         # Convert BGR → RGB (face_recognition requires RGB)
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
 
-        # ── Detect faces & extract encodings ─────────────────────
+        # ── Scale frame down for faster detection ────────────────
+        # Operating on a 1/4-size image gives a ~16× speedup in
+        # pixel processing while preserving detection quality at
+        # typical classroom distances.
+        small_frame = cv2.resize(
+            frame_rgb,
+            (0, 0),
+            fx=DETECTION_SCALE,
+            fy=DETECTION_SCALE,
+        )
+
+        # ── Detect faces & extract encodings on small frame ──────
         try:
-            face_locations = face_recognition.face_locations(frame_rgb)
+            face_locations_small = face_recognition.face_locations(
+                small_frame,
+                number_of_times_to_upsample=1,
+                model="hog",
+            )
             face_encodings = face_recognition.face_encodings(
-                frame_rgb, face_locations
+                small_frame,
+                face_locations_small,
+                num_jitters=1,
             )
         except Exception as detection_error:
             logger.warning(
@@ -278,9 +301,21 @@ def process_video(video_path: str) -> VideoProcessingResult:
             )
             continue
 
-        if not face_locations:
+        if not face_locations_small:
             # No faces in this frame — move on
             continue
+
+        # Scale face locations back to original frame dimensions
+        # so that crops are taken from the full-resolution frame.
+        face_locations = [
+            (
+                top * DETECTION_SCALE_INV,
+                right * DETECTION_SCALE_INV,
+                bottom * DETECTION_SCALE_INV,
+                left * DETECTION_SCALE_INV,
+            )
+            for top, right, bottom, left in face_locations_small
+        ]
 
         result.faces_detected += len(face_encodings)
 

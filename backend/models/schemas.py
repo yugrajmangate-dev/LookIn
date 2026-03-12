@@ -260,3 +260,37 @@ class AlumniCleanupResult(BaseModel):
     message: str
     removed_count: int = 0
     removed_student_ids: List[str] = Field(default_factory=list)
+
+
+# ──────────────────────────────────────────────
+#  Enrolled Students (Admin management)
+# ──────────────────────────────────────────────
+
+class EnrolledStudentSummary(BaseModel):
+    """Summary of a single enrolled student for the admin panel."""
+    student_id: str
+    student_name: str
+    division: Optional[str] = None
+    graduation_year: Optional[int] = None
+    encoding_count: int = Field(
+        ...,
+        description="Number of face encodings stored for this student.",
+    )
+    registered_at: Optional[dt.datetime] = Field(
+        default=None,
+        description="Timestamp of the first registered encoding.",
+    )
+
+
+class EnrolledStudentsListResponse(BaseModel):
+    """Response listing all enrolled students."""
+    success: bool = True
+    total_count: int
+    students: List[EnrolledStudentSummary]
+
+
+class DeleteStudentResponse(BaseModel):
+    """Response after deleting a student's biometric data."""
+    success: bool = True
+    message: str
+    student_id: str
