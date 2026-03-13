@@ -14,6 +14,7 @@ import {
   User,
   GraduationCap,
   Layers,
+  Mail,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { apiUrl, type EnrollmentResponse, type ErrorResponse } from "@/lib/api";
@@ -30,6 +31,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
   const [studentName, setStudentName] = useState<string>("");
   const [division, setDivision] = useState<string>("");
   const [graduationYear, setGraduationYear] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
   const [images, setImages] = useState<ImagePreview[]>([]);
 
   /* ── Submission state ────────────────────────── */
@@ -78,7 +80,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
 
       if (!studentId.trim() || !studentName.trim() || images.length === 0) {
         setErrorMessage(
-          "Please fill in Student ID, Full Name, and add at least one photo."
+          "Please fill in Roll Number, Name, and add at least one photo."
         );
         return;
       }
@@ -112,6 +114,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
         setStudentName("");
         setDivision("");
         setGraduationYear("");
+        setEmail("");
         clearAllImages();
       } catch (submitError) {
         const message =
@@ -213,14 +216,14 @@ export default function EnrollStudentPage(): React.JSX.Element {
                   className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-gray-600 uppercase tracking-wider sm:mb-1.5 sm:text-xs"
                 >
                   <Hash className="h-3 w-3" />
-                  Student ID <span className="text-red-400">*</span>
+                  Roll Number <span className="text-red-400">*</span>
                 </label>
                 <input
                   id="studentId"
                   type="text"
                   value={studentId}
                   onChange={(event) => setStudentId(event.target.value)}
-                  placeholder="e.g. STU-2025-0042"
+                  placeholder="e.g. CS2025-042"
                   required
                   className="input-field"
                 />
@@ -232,7 +235,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
                   className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider"
                 >
                   <User className="h-3 w-3" />
-                  Full Name <span className="text-red-400">*</span>
+                  Name <span className="text-red-400">*</span>
                 </label>
                 <input
                   id="studentName"
@@ -254,14 +257,14 @@ export default function EnrollStudentPage(): React.JSX.Element {
                   className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider"
                 >
                   <Layers className="h-3 w-3" />
-                  Division
+                  Department
                 </label>
                 <input
                   id="division"
                   type="text"
                   value={division}
                   onChange={(event) => setDivision(event.target.value)}
-                  placeholder="e.g. CS-A (optional)"
+                  placeholder="e.g. Computer Science (optional)"
                   className="input-field"
                 />
               </div>
@@ -272,7 +275,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
                   className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider"
                 >
                   <GraduationCap className="h-3 w-3" />
-                  Graduation Year
+                  Year
                 </label>
                 <input
                   id="graduationYear"
@@ -290,12 +293,53 @@ export default function EnrollStudentPage(): React.JSX.Element {
               </div>
             </div>
 
+            {/* Row 3: Email */}
+            <div>
+              <label
+                htmlFor="email"
+                className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider"
+              >
+                <Mail className="h-3 w-3" />
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="e.g. student@college.edu (optional)"
+                className="input-field"
+              />
+            </div>
+
             {/* Separator */}
             <div className="border-t border-gray-100 pt-5">
               <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 <Camera className="h-3 w-3" />
                 Reference Photos <span className="text-red-400">*</span>
               </h3>
+            </div>
+
+            {/* Camera preview + capture placeholder */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1.2fr_0.8fr]">
+              <div className="card-elevated flex flex-col items-center justify-center gap-3 border border-dashed border-gray-200 bg-gray-50/60 p-6 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white">
+                  <Camera className="h-7 w-7 text-gray-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Camera Preview</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Live capture placeholder for OpenCV feed
+                  </p>
+                </div>
+              </div>
+              <div className="card-elevated flex flex-col items-center justify-center gap-3 p-6 text-center">
+                <button type="button" className="btn-secondary w-full justify-center">
+                  <Camera className="h-4 w-4" />
+                  Capture Face Images
+                </button>
+                <p className="text-xs text-gray-500">Use the camera to capture 3-5 photos</p>
+              </div>
             </div>
 
             {/* ── Photo Upload Zone ──────────────────────── */}

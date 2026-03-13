@@ -13,6 +13,7 @@ import {
   Clock,
   Search,
   Download,
+  UserPlus,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import StatusBadge from "@/components/StatusBadge";
@@ -35,6 +36,7 @@ export default function DailyRosterPage(): React.JSX.Element {
   const [selectedDate, setSelectedDate] = useState<string>(todayDateString());
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState<number>(0);
+  const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -86,6 +88,24 @@ export default function DailyRosterPage(): React.JSX.Element {
   useEffect(() => {
     fetchRoster(selectedDate);
   }, [selectedDate, fetchRoster]);
+
+  /* ── Fetch total students for dashboard cards ───── */
+  const fetchTotalStudents = useCallback(async () => {
+    try {
+      const response = await fetch(apiUrl("/api/enroll/list"));
+      if (!response.ok) return;
+      const data = await response.json();
+      if (typeof data.total_count === "number") {
+        setTotalStudents(data.total_count);
+      }
+    } catch {
+      setTotalStudents(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTotalStudents();
+  }, [fetchTotalStudents]);
 
   const handleDateChange = (
     event: React.ChangeEvent<HTMLInputElement>
@@ -199,8 +219,8 @@ export default function DailyRosterPage(): React.JSX.Element {
   return (
     <div>
       <PageHeader
-        title="Daily Roster"
-        description="View and manage attendance records for the selected date."
+        title="Dashboard"
+        description="Monitor attendance performance and recent activity at a glance."
       >
         {/* Date picker */}
         <div className="flex items-center gap-2 bg-white rounded-xl border border-gray-200 px-2.5 py-1.5 shadow-sm sm:px-3">
@@ -246,14 +266,16 @@ export default function DailyRosterPage(): React.JSX.Element {
       </p>
 
       {/* ── Stats Cards ────────────────────────────── */}
-      <div className="mb-4 grid grid-cols-3 gap-2 sm:mb-6 sm:gap-4">
+      <div className="mb-4 grid grid-cols-1 gap-2 sm:mb-6 sm:grid-cols-3 sm:gap-4">
         <div className="stat-card animate-fade-in">
           <div className="stat-icon bg-brand-50 !h-9 !w-9 sm:!h-12 sm:!w-12">
-            <Users className="h-4 w-4 text-brand-600 sm:h-6 sm:w-6" />
+            <UserPlus className="h-4 w-4 text-brand-600 sm:h-6 sm:w-6" />
           </div>
           <div>
-            <p className="text-lg font-bold text-gray-900 sm:text-2xl">{totalRecords}</p>
-            <p className="text-[10px] font-medium text-gray-500 sm:text-xs">Total</p>
+            <p className="text-lg font-bold text-gray-900 sm:text-2xl">
+              {totalStudents ?? "—"}
+            </p>
+            <p className="text-[10px] font-medium text-gray-500 sm:text-xs">Total Students</p>
           </div>
         </div>
 
@@ -263,7 +285,7 @@ export default function DailyRosterPage(): React.JSX.Element {
           </div>
           <div>
             <p className="text-lg font-bold text-emerald-600 sm:text-2xl">{presentCount}</p>
-            <p className="text-[10px] font-medium text-gray-500 sm:text-xs">Present</p>
+            <p className="text-[10px] font-medium text-gray-500 sm:text-xs">Present Today</p>
           </div>
         </div>
 
@@ -273,7 +295,7 @@ export default function DailyRosterPage(): React.JSX.Element {
           </div>
           <div>
             <p className="text-lg font-bold text-red-500 sm:text-2xl">{absentCount}</p>
-            <p className="text-[10px] font-medium text-gray-500 sm:text-xs">Absent</p>
+            <p className="text-[10px] font-medium text-gray-500 sm:text-xs">Absent Today</p>
           </div>
         </div>
       </div>
@@ -287,6 +309,14 @@ export default function DailyRosterPage(): React.JSX.Element {
           </p>
         </div>
       )}
+
+      {/* ── Recent Attendance Activity ─────────────── */}
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 sm:text-base">Recent Attendance Activity</h2>
+          <p className="text-xs text-gray-500">Latest records for {formatDisplayDate(selectedDate)}</p>
+        </div>
+      </div>
 
       {/* ── Search & Actions Bar ───────────────────── */}
       <div className="mb-3 flex flex-col gap-2 sm:mb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">

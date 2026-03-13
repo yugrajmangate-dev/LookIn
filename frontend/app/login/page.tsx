@@ -146,6 +146,14 @@ export default function LoginPage(): React.JSX.Element {
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-gray-500 transition-all focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20"
                 />
+                <div className="mt-2 text-right">
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-gray-400 transition-colors hover:text-gray-200"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
               </div>
             )}
 

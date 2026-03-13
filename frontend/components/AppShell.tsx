@@ -8,7 +8,17 @@ import Sidebar from "@/components/Sidebar";
 import LoginPage from "@/app/login/page";
 
 /** Routes that only admins can access */
-const ADMIN_ONLY_ROUTES = ["/", "/upload", "/review", "/enroll", "/admin"];
+const ADMIN_ONLY_ROUTES = [
+  "/",
+  "/start-attendance",
+  "/admin",
+  "/reports",
+  "/monitoring",
+  "/settings",
+  "/upload",
+  "/review",
+  "/enroll",
+];
 
 /** Routes that only students can access */
 const STUDENT_ONLY_ROUTES = ["/student"];

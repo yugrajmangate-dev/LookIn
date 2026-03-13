@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
   ShieldCheck,
   Trash2,
@@ -13,7 +14,6 @@ import {
   UserMinus,
   Info,
   Search,
-  Hash,
   BookOpen,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
@@ -163,25 +163,15 @@ export default function AdminPage(): React.JSX.Element {
     );
   });
 
-  const formatDate = (iso: string | null | undefined): string => {
-    if (!iso) return "—";
-    try {
-      return new Date(iso).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    } catch {
-      return iso;
-    }
-  };
-
   return (
     <div>
       <PageHeader
-        title="Admin Panel"
-        description="Manage enrolled students and perform system maintenance tasks."
+        title="Student Database"
+        description="Manage student profiles, attendance status, and enrollment records."
       >
+        <Link href="/enroll" className="btn-primary">
+          Enroll Student
+        </Link>
         <button
           type="button"
           onClick={fetchStudents}
@@ -222,7 +212,7 @@ export default function AdminPage(): React.JSX.Element {
                 </div>
                 <div>
                   <h2 className="text-sm font-semibold text-gray-900">
-                    Enrolled Students
+                    Student Database
                   </h2>
                   <p className="text-xs text-gray-500">
                     {totalCount} student{totalCount !== 1 ? "s" : ""} registered
@@ -298,16 +288,10 @@ export default function AdminPage(): React.JSX.Element {
                         Student
                       </th>
                       <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 sm:table-cell">
-                        Division
+                        Department
                       </th>
                       <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:table-cell">
-                        Grad. Year
-                      </th>
-                      <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 lg:table-cell">
-                        Encodings
-                      </th>
-                      <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 lg:table-cell">
-                        Enrolled On
+                        Attendance %
                       </th>
                       <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-6">
                         Action
@@ -342,18 +326,9 @@ export default function AdminPage(): React.JSX.Element {
                           </span>
                         </td>
                         <td className="hidden px-4 py-3 md:table-cell">
-                          <span className="text-gray-600">
-                            {student.graduation_year ?? "—"}
+                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                            —
                           </span>
-                        </td>
-                        <td className="hidden px-4 py-3 lg:table-cell">
-                          <span className="inline-flex items-center gap-1 text-xs text-gray-600">
-                            <Hash className="h-3 w-3" />
-                            {student.encoding_count}
-                          </span>
-                        </td>
-                        <td className="hidden px-4 py-3 text-xs text-gray-500 lg:table-cell">
-                          {formatDate(student.registered_at ?? null)}
                         </td>
                         <td className="px-4 py-3 text-right sm:px-6">
                           {confirmDeleteId === student.student_id ? (

@@ -147,6 +147,37 @@ export default function StudentDashboard(): React.JSX.Element {
         </div>
       </div>
 
+      {/* Profile Information */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-sm">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
+          Profile Information
+        </h3>
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <p className="text-xs text-gray-500">Name</p>
+            <p className="mt-1 text-sm font-semibold text-white">
+              {data?.student_name || studentInfo.student_name}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Roll Number</p>
+            <p className="mt-1 text-sm font-semibold text-white">
+              {studentInfo.student_id}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Department</p>
+            <p className="mt-1 text-sm font-semibold text-white">
+              {data?.division ?? "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Email</p>
+            <p className="mt-1 text-sm font-semibold text-white">student@college.edu</p>
+          </div>
+        </div>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {/* Total Classes */}
@@ -289,6 +320,36 @@ export default function StudentDashboard(): React.JSX.Element {
             </p>
           </div>
         )}
+      </div>
+
+      {/* Subject-wise Attendance */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+        <div className="border-b border-white/10 px-5 py-4">
+          <h3 className="font-semibold text-white">Subject-wise Attendance</h3>
+          <p className="text-xs text-gray-500">Summary by subject for the current term</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-white/10 text-left text-xs font-medium uppercase text-gray-500">
+                <th className="px-5 py-3">Subject</th>
+                <th className="px-5 py-3">Classes</th>
+                <th className="px-5 py-3">Present</th>
+                <th className="px-5 py-3">Attendance %</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {["Data Structures", "Operating Systems", "DBMS"].map((subject) => (
+                <tr key={subject} className="transition-colors hover:bg-white/[0.02]">
+                  <td className="px-5 py-4 text-sm text-white">{subject}</td>
+                  <td className="px-5 py-4 text-sm text-gray-300">—</td>
+                  <td className="px-5 py-4 text-sm text-gray-300">—</td>
+                  <td className="px-5 py-4 text-sm text-gray-300">—</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

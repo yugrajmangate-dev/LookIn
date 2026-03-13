@@ -7,17 +7,17 @@ import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import {
   LayoutDashboard,
-  UploadCloud,
-  UserSearch,
-  UserPlus,
   ScanFace,
   LogOut,
   ChevronRight,
   Menu,
   X,
-  ShieldCheck,
   GraduationCap,
   ClipboardList,
+  Users,
+  BarChart3,
+  Camera,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -36,34 +36,40 @@ interface NavigationItem {
 /** Navigation items for admin/faculty users */
 const ADMIN_NAVIGATION_ITEMS: NavigationItem[] = [
   {
-    label: "Daily Roster",
+    label: "Dashboard",
     href: "/",
     icon: LayoutDashboard,
-    description: "Attendance records",
+    description: "Daily overview",
   },
   {
-    label: "Upload Video",
-    href: "/upload",
-    icon: UploadCloud,
-    description: "Process class videos",
+    label: "Start Attendance",
+    href: "/start-attendance",
+    icon: ScanFace,
+    description: "Live face recognition",
   },
   {
-    label: "Unknown Faces",
-    href: "/review",
-    icon: UserSearch,
-    description: "Review detections",
-  },
-  {
-    label: "Enroll Student",
-    href: "/enroll",
-    icon: UserPlus,
-    description: "Register new faces",
-  },
-  {
-    label: "Admin Panel",
+    label: "Student Database",
     href: "/admin",
-    icon: ShieldCheck,
-    description: "Manage & cleanup",
+    icon: Users,
+    description: "Manage student profiles",
+  },
+  {
+    label: "Attendance Reports",
+    href: "/reports",
+    icon: BarChart3,
+    description: "Analytics and exports",
+  },
+  {
+    label: "Camera Monitoring",
+    href: "/monitoring",
+    icon: Camera,
+    description: "Live feed overview",
+  },
+  {
+    label: "Settings",
+    href: "/settings",
+    icon: Settings,
+    description: "System preferences",
   },
 ];
 
