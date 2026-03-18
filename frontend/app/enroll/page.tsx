@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback, type ChangeEvent } from "react";
+import React, { useState, useRef, useCallback, useEffect, type ChangeEvent } from "react";
 import {
   UserPlus,
   Upload,
@@ -10,6 +10,8 @@ import {
   Image as ImageIcon,
   Trash2,
   Camera,
+  Play,
+  Square,
   Hash,
   User,
   GraduationCap,
@@ -17,6 +19,7 @@ import {
   Mail,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import SystemStatusPanel from "@/components/SystemStatusPanel";
 import { apiUrl, type EnrollmentResponse, type ErrorResponse } from "@/lib/api";
 
 interface ImagePreview {
@@ -33,14 +36,23 @@ export default function EnrollStudentPage(): React.JSX.Element {
   const [graduationYear, setGraduationYear] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [images, setImages] = useState<ImagePreview[]>([]);
+  const [consentGiven, setConsentGiven] = useState<boolean>(false);
 
   /* ── Submission state ────────────────────────── */
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [successResult, setSuccessResult] =
     useState<EnrollmentResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [cameraStatus, setCameraStatus] = useState<string>(
+    "Camera idle. Enable to capture face images."
+  );
+  const [hasCameraAccess, setHasCameraAccess] = useState<boolean>(true);
+  const [isCameraRunning, setIsCameraRunning] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   /* ── Image handling ──────────────────────────── */
   const addImages = useCallback((fileList: FileList | null) => {
@@ -81,6 +93,13 @@ export default function EnrollStudentPage(): React.JSX.Element {
       if (!studentId.trim() || !studentName.trim() || images.length === 0) {
         setErrorMessage(
           "Please fill in Roll Number, Name, and add at least one photo."
+        );
+        return;
+      }
+
+      if (!consentGiven) {
+        setErrorMessage(
+          "Consent is required before capturing or submitting biometric data."
         );
         return;
       }
@@ -126,7 +145,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
         setIsSubmitting(false);
       }
     },
-    [studentId, studentName, division, graduationYear, images, clearAllImages]
+    [studentId, studentName, division, graduationYear, images, clearAllImages, consentGiven]
   );
 
   const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -153,6 +172,90 @@ export default function EnrollStudentPage(): React.JSX.Element {
     addImages(event.dataTransfer.files);
   };
 
+  /* ── Webcam capture ─────────────────────────── */
+  const startCamera = useCallback(async () => {
+    if (!consentGiven) {
+      setErrorMessage("Please provide consent before enabling the camera.");
+      return;
+    }
+
+    if (!videoRef.current) return;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 },
+        audio: false,
+      });
+      streamRef.current = stream;
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+      setHasCameraAccess(true);
+      setIsCameraRunning(true);
+      setCameraStatus("Camera live. Capture 3-5 clear face photos.");
+    } catch (error) {
+      setHasCameraAccess(false);
+      setIsCameraRunning(false);
+      setCameraStatus(
+        error instanceof Error
+          ? error.message
+          : "Unable to access camera. Check permissions."
+      );
+    }
+  }, [consentGiven]);
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setIsCameraRunning(false);
+    setCameraStatus("Camera stopped. You can start again anytime.");
+  }, []);
+
+  const capturePhoto = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || !isCameraRunning) return;
+
+    const width = video.videoWidth || 640;
+    const height = video.videoHeight || 480;
+
+    if (!captureCanvasRef.current) {
+      captureCanvasRef.current = document.createElement("canvas");
+    }
+
+    const canvas = captureCanvasRef.current;
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    context.drawImage(video, 0, 0, width, height);
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], `capture-${Date.now()}.jpg`, { type: "image/jpeg" });
+      const previewUrl = URL.createObjectURL(blob);
+      setImages((previous) => [
+        ...previous,
+        {
+          id: `${file.name}-${Date.now()}-${Math.random()}`,
+          file,
+          previewUrl,
+        },
+      ]);
+    }, "image/jpeg", 0.9);
+  }, [isCameraRunning]);
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
   /* ── Render ──────────────────────────────────── */
   return (
     <div>
@@ -160,6 +263,8 @@ export default function EnrollStudentPage(): React.JSX.Element {
         title="Enroll Student"
         description="Register a new student by providing their details and uploading reference photos for face recognition."
       />
+
+      <SystemStatusPanel cameraState={isCameraRunning ? "granted" : hasCameraAccess ? "idle" : "denied"} />
 
       <div className="mx-auto max-w-3xl">
         {/* ── Guidelines Info ──────────────────────────── */}
@@ -223,6 +328,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
                   type="text"
                   value={studentId}
                   onChange={(event) => setStudentId(event.target.value)}
+                  autoComplete="off"
                   placeholder="e.g. CS2025-042"
                   required
                   className="input-field"
@@ -242,6 +348,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
                   type="text"
                   value={studentName}
                   onChange={(event) => setStudentName(event.target.value)}
+                  autoComplete="name"
                   placeholder="e.g. Priya Sharma"
                   required
                   className="input-field"
@@ -264,6 +371,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
                   type="text"
                   value={division}
                   onChange={(event) => setDivision(event.target.value)}
+                  autoComplete="organization"
                   placeholder="e.g. Computer Science (optional)"
                   className="input-field"
                 />
@@ -282,6 +390,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
                   type="number"
                   value={graduationYear}
                   onChange={(event) => setGraduationYear(event.target.value)}
+                  autoComplete="off"
                   placeholder="e.g. 2027 (optional)"
                   min={2000}
                   max={2100}
@@ -307,6 +416,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
                 placeholder="e.g. student@college.edu (optional)"
                 className="input-field"
               />
@@ -318,27 +428,81 @@ export default function EnrollStudentPage(): React.JSX.Element {
                 <Camera className="h-3 w-3" />
                 Reference Photos <span className="text-red-400">*</span>
               </h3>
+              <label className="mt-3 flex items-start gap-2 text-xs text-gray-600">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600"
+                  checked={consentGiven}
+                  onChange={(event) => setConsentGiven(event.target.checked)}
+                />
+                I consent to capture and store my biometric data for attendance.
+              </label>
             </div>
 
-            {/* Camera preview + capture placeholder */}
+            {/* Camera preview + capture */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1.2fr_0.8fr]">
-              <div className="card-elevated flex flex-col items-center justify-center gap-3 border border-dashed border-gray-200 bg-gray-50/60 p-6 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white">
-                  <Camera className="h-7 w-7 text-gray-400" />
+              <div className="card-elevated overflow-hidden border border-dashed border-gray-200 bg-gray-50/60">
+                <div className="relative min-h-[220px]">
+                  <video
+                    ref={videoRef}
+                    className="h-full w-full object-cover"
+                    autoPlay
+                    playsInline
+                    muted
+                  />
+                  {!isCameraRunning && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white">
+                        <Camera className="h-7 w-7 text-gray-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-700">Camera Preview</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Enable the camera to capture face images
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-700">Camera Preview</p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Live capture placeholder for OpenCV feed
-                  </p>
+                <div className="border-t border-gray-100 px-4 py-3 text-xs text-gray-600">
+                  {!hasCameraAccess && (
+                    <div className="flex items-start gap-2 text-amber-600">
+                      <AlertCircle className="mt-0.5 h-4 w-4" />
+                      <span>Camera access denied. Please allow permissions.</span>
+                    </div>
+                  )}
+                  <p className="mt-1">{cameraStatus}</p>
                 </div>
               </div>
               <div className="card-elevated flex flex-col items-center justify-center gap-3 p-6 text-center">
-                <button type="button" className="btn-secondary w-full justify-center">
-                  <Camera className="h-4 w-4" />
-                  Capture Face Images
+                <button
+                  type="button"
+                  className="btn-primary w-full justify-center"
+                  onClick={startCamera}
+                  disabled={isCameraRunning}
+                >
+                  <Play className="h-4 w-4" />
+                  Start Camera
                 </button>
-                <p className="text-xs text-gray-500">Use the camera to capture 3-5 photos</p>
+                <button
+                  type="button"
+                  className="btn-secondary w-full justify-center"
+                  onClick={capturePhoto}
+                  disabled={!isCameraRunning}
+                >
+                  <Camera className="h-4 w-4" />
+                  Capture Photo
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary w-full justify-center"
+                  onClick={stopCamera}
+                  disabled={!isCameraRunning}
+                >
+                  <Square className="h-4 w-4" />
+                  Stop Camera
+                </button>
+                <p className="text-xs text-gray-500">Capture 3-5 clear photos</p>
               </div>
             </div>
 
