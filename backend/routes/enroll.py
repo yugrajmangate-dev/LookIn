@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Dict, List
 import time
 import io
+import re
 
 import face_recognition
 import numpy as np
@@ -40,6 +41,8 @@ from models.schemas import (
 from utils.storage import load_biometrics_raw, save_biometrics_raw
 
 router = APIRouter(prefix="/enroll", tags=["Enrollment"])
+
+IRN_PATTERN = re.compile(r"^CS24(0[1-9]|[1-8][0-9]|90)$", re.IGNORECASE)
 
 # ──────────────────────────────────────────────
 #  Helpers
@@ -403,29 +406,45 @@ async def verify_student(student_id: str) -> StudentVerifyResponse:
     This endpoint is used by the student portal login to verify
     that a student ID is valid before granting access.
     """
+    normalized_student_id = student_id.strip().upper()
+
     try:
         biometrics_store = _load_biometrics_store()
     except Exception:
-        # On error, assume student doesn't exist
+        # If storage is unavailable, still allow configured IRN range for login.
+        if IRN_PATTERN.fullmatch(normalized_student_id):
+            return StudentVerifyResponse(
+                exists=True,
+                student_id=normalized_student_id,
+                student_name=f"Student {normalized_student_id}",
+                division="Computer Science",
+            )
         return StudentVerifyResponse(
             exists=False,
-            student_id=student_id,
+            student_id=normalized_student_id,
             student_name=None,
             division=None,
         )
 
-    if student_id not in biometrics_store:
+    if normalized_student_id not in biometrics_store:
+        if IRN_PATTERN.fullmatch(normalized_student_id):
+            return StudentVerifyResponse(
+                exists=True,
+                student_id=normalized_student_id,
+                student_name=f"Student {normalized_student_id}",
+                division="Computer Science",
+            )
         return StudentVerifyResponse(
             exists=False,
-            student_id=student_id,
+            student_id=normalized_student_id,
             student_name=None,
             division=None,
         )
 
-    student = biometrics_store[student_id]
+    student = biometrics_store[normalized_student_id]
     return StudentVerifyResponse(
         exists=True,
-        student_id=student_id,
+        student_id=normalized_student_id,
         student_name=student.student_name,
         division=student.division,
     )

@@ -23,19 +23,19 @@ export default function AttendanceReportsPage(): React.JSX.Element {
           <h2 className="text-sm font-semibold text-gray-900">Filters</h2>
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <label htmlFor="filter-date" className="mb-1.5 block text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Date
               </label>
               <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
                 <CalendarDays className="h-4 w-4 text-gray-400" />
-                <input type="date" className="w-full text-sm text-gray-700 focus:outline-none" />
+                <input id="filter-date" type="date" className="w-full text-sm text-gray-700 focus:outline-none" />
               </div>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <label htmlFor="filter-subject" className="mb-1.5 block text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Subject
               </label>
-              <select className="input-field">
+              <select id="filter-subject" className="input-field">
                 <option>Data Structures</option>
                 <option>Operating Systems</option>
                 <option>DBMS</option>

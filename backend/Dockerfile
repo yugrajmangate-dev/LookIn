@@ -1,6 +1,10 @@
 # ── Stage 1: Build dlib (requires cmake + C++ compiler) ──
 FROM python:3.11-slim AS builder
 
+# Limit build parallelism and disable pip caching to reduce memory use
+ENV MAX_JOBS=1
+ENV PIP_NO_CACHE_DIR=1
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
@@ -13,7 +17,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+# Install heavy deps in sequence to avoid RAM spikes
+RUN pip install --prefix=/install numpy \
+    && pip install --prefix=/install dlib face_recognition \
+    && pip install --prefix=/install -r requirements.txt
 
 
 # ── Stage 2: Production image ──

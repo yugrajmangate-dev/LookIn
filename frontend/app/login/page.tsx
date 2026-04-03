@@ -9,6 +9,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { useAuth, type UserRole } from "@/components/AuthProvider";
+import SystemStatusPanel from "@/components/SystemStatusPanel";
 
 export default function LoginPage(): React.JSX.Element {
   const { loginAdmin, loginStudent } = useAuth();
@@ -48,6 +49,8 @@ export default function LoginPage(): React.JSX.Element {
       <div className="pointer-events-none absolute -bottom-32 -right-32 h-72 w-72 rounded-full bg-brand-500/10 blur-3xl" />
 
       <div className="w-full max-w-md animate-fade-in">
+        <SystemStatusPanel cameraState="unknown" />
+
         {/* ── Brand Card ─────────────────────────────── */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur-md sm:rounded-3xl sm:p-8 md:p-10">
           {/* Logo */}
@@ -120,9 +123,19 @@ export default function LoginPage(): React.JSX.Element {
                 required
                 autoComplete={role === "admin" ? "username" : "off"}
                 autoFocus
-                placeholder={role === "admin" ? "Enter your username" : "Enter your roll number"}
+                placeholder={
+                  role === "admin"
+                    ? "Enter your username"
+                    : "Example: CS2470 (CS2401 to CS2490)"
+                }
                 value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
+                onChange={(e) =>
+                  setIdentifier(
+                    role === "student"
+                      ? e.target.value.toUpperCase()
+                      : e.target.value
+                  )
+                }
                 className="block w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-gray-500 transition-all focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20"
               />
             </div>
@@ -162,7 +175,7 @@ export default function LoginPage(): React.JSX.Element {
               <div className="flex items-center gap-2 rounded-xl border border-brand-500/20 bg-brand-500/10 px-3 py-2">
                 <GraduationCap className="h-4 w-4 flex-shrink-0 text-brand-400" />
                 <p className="text-xs leading-relaxed text-brand-300/90">
-                  Enter your registered roll number to view your attendance records.
+                  Student login accepts IRN format (example: CS2470). Demo range enabled: CS2401 to CS2490.
                 </p>
               </div>
             )}

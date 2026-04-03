@@ -177,3 +177,27 @@ export interface StudentVerifyResponse {
   student_name: string | null;
   division: string | null;
 }
+
+// ──────────────────────────────────────────────
+//  Live Webcam Recognition (Phase 7)
+// ──────────────────────────────────────────────
+
+export interface WebcamFaceMatch {
+  face_index: number;
+  face_location: number[];
+  matched: boolean;
+  student_id: string | null;
+  student_name: string | null;
+  division: string | null;
+  distance: number | null;
+  confidence: number | null;
+}
+
+export interface WebcamRecognitionResponse {
+  success: boolean;
+  faces_found: number;
+  students_matched: number;
+  unknown_faces: number;
+  processing_time_ms: number;
+  matches: WebcamFaceMatch[];
+}

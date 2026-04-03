@@ -17,6 +17,7 @@ const VALID_ADMIN_PASSWORD = "student";
 const SESSION_KEY = "lookin_auth";
 const ROLE_KEY = "lookin_role";
 const STUDENT_KEY = "lookin_student";
+const STUDENT_IRN_PATTERN = /^CS24(0[1-9]|[1-8][0-9]|90)$/i;
 
 export type UserRole = "admin" | "student";
 
@@ -112,10 +113,14 @@ export function AuthProvider({
   /* ── Student Login handler ─────────────────────────────── */
   const loginStudent = useCallback(
     async (studentId: string): Promise<string | null> => {
-      const trimmedId = studentId.trim();
+      const trimmedId = studentId.trim().toUpperCase();
       
       if (!trimmedId) {
         return "Please enter your Student ID.";
+      }
+
+      if (!STUDENT_IRN_PATTERN.test(trimmedId)) {
+        return "Use a valid IRN in the range CS2401 to CS2490.";
       }
 
       try {
@@ -123,7 +128,7 @@ export function AuthProvider({
         const data = await response.json();
 
         if (!data.exists) {
-          return "Student ID not found. Please check your ID or contact administration.";
+          return "Student ID not found in the system yet. Use an IRN from CS2401 to CS2490 or contact administration.";
         }
 
         const info: StudentInfo = {

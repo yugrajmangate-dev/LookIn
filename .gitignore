@@ -10,6 +10,7 @@ build/
 # ── Virtual Environment ─────────────────────
 backend/venv/
 .venv/
+.venv311/
 
 # ── Environment Variables ────────────────────
 .env

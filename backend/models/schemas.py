@@ -4,7 +4,7 @@ across all API endpoints.
 """
 
 import datetime as dt
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -196,7 +196,7 @@ class VideoProcessingResult(BaseModel):
     frames_without_faces: int = 0
     processing_time_seconds: float = 0.0
     
-    def get_verification_stats(self) -> Dict[str, Dict[str, any]]:
+    def get_verification_stats(self) -> Dict[str, Dict[str, Any]]:
         """Return comprehensive verification statistics"""
         return {
             "processing_summary": {
@@ -246,7 +246,7 @@ class CVVerificationResult(BaseModel):
     
     # Detailed detection results
     face_locations: List[List[int]] = Field(default_factory=list, description="Top, right, bottom, left coordinates")
-    match_results: List[Dict[str, any]] = Field(default_factory=list)
+    match_results: List[Dict[str, Any]] = Field(default_factory=list)
     detection_confidence: float = 0.0
     
     # Error handling
@@ -390,3 +390,32 @@ class StudentVerifyResponse(BaseModel):
     student_id: str
     student_name: Optional[str] = None
     division: Optional[str] = None
+
+
+# ──────────────────────────────────────────────
+#  Live Webcam Recognition (Phase 7)
+# ──────────────────────────────────────────────
+
+class WebcamFaceMatch(BaseModel):
+    """Match result for a single detected face."""
+    face_index: int
+    face_location: List[int] = Field(
+        ...,
+        description="Top, right, bottom, left bounding box coordinates.",
+    )
+    matched: bool
+    student_id: Optional[str] = None
+    student_name: Optional[str] = None
+    division: Optional[str] = None
+    distance: Optional[float] = None
+    confidence: Optional[float] = None
+
+
+class WebcamRecognitionResponse(BaseModel):
+    """Response for a single webcam frame recognition request."""
+    success: bool = True
+    faces_found: int
+    students_matched: int
+    unknown_faces: int
+    processing_time_ms: float
+    matches: List[WebcamFaceMatch] = Field(default_factory=list)

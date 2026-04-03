@@ -20,6 +20,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
+import { apiUrl } from "@/lib/api";
 
 /** Utility to merge Tailwind classes safely. */
 function cn(...inputs: (string | undefined | false | null)[]): string {
@@ -88,6 +89,7 @@ export default function Sidebar(): React.JSX.Element {
   const router = useRouter();
   const { logout, role, studentInfo } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [backendConnected, setBackendConnected] = useState<boolean>(false);
 
   // Select nav items based on role
   const navigationItems = useMemo(() => {
@@ -111,6 +113,32 @@ export default function Sidebar(): React.JSX.Element {
     };
   }, [mobileOpen]);
 
+  // Global backend connectivity indicator for quick troubleshooting.
+  useEffect(() => {
+    let active = true;
+
+    const checkBackend = async () => {
+      try {
+        const response = await fetch(apiUrl("/"), { method: "GET" });
+        if (!active) return;
+        setBackendConnected(response.ok);
+      } catch {
+        if (!active) return;
+        setBackendConnected(false);
+      }
+    };
+
+    void checkBackend();
+    const intervalId = setInterval(() => {
+      void checkBackend();
+    }, 6000);
+
+    return () => {
+      active = false;
+      clearInterval(intervalId);
+    };
+  }, []);
+
   // Handle logout and redirect
   const handleLogout = () => {
     logout();
@@ -125,7 +153,25 @@ export default function Sidebar(): React.JSX.Element {
           <ScanFace className="h-5 w-5 text-white lg:h-6 lg:w-6" />
         </div>
         <div className="min-w-0 flex-1">
-          <span className="text-base font-bold tracking-tight lg:text-lg">LookIn</span>
+          <div className="flex items-center gap-2">
+            <span className="text-base font-bold tracking-tight lg:text-lg">LookIn</span>
+            <span
+              className={cn(
+                "inline-flex h-2.5 w-2.5 rounded-full",
+                backendConnected ? "bg-emerald-400" : "bg-red-400"
+              )}
+              title={backendConnected ? "Backend connected" : "Backend disconnected"}
+              aria-label={backendConnected ? "Backend connected" : "Backend disconnected"}
+            />
+            <span
+              className={cn(
+                "text-[10px] font-semibold uppercase tracking-wide",
+                backendConnected ? "text-emerald-300" : "text-red-300"
+              )}
+            >
+              {backendConnected ? "Connected" : "Disconnected"}
+            </span>
+          </div>
           <p className="text-[10px] font-medium text-slate-400 lg:text-[11px]">
             {role === "student" ? "Student Portal" : "Attendance System"}
           </p>
@@ -247,6 +293,22 @@ export default function Sidebar(): React.JSX.Element {
             <ScanFace className="h-4 w-4 text-white" />
           </div>
           <span className="text-sm font-bold tracking-tight text-gray-900">LookIn</span>
+          <span
+            className={cn(
+              "inline-flex h-2.5 w-2.5 rounded-full",
+              backendConnected ? "bg-emerald-500" : "bg-red-500"
+            )}
+            title={backendConnected ? "Backend connected" : "Backend disconnected"}
+            aria-label={backendConnected ? "Backend connected" : "Backend disconnected"}
+          />
+          <span
+            className={cn(
+              "text-[10px] font-semibold uppercase tracking-wide",
+              backendConnected ? "text-emerald-700" : "text-red-700"
+            )}
+          >
+            {backendConnected ? "Connected" : "Disconnected"}
+          </span>
         </div>
       </div>
 

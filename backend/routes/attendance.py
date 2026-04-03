@@ -18,6 +18,7 @@ import uuid
 from datetime import date, datetime
 from pathlib import Path
 from typing import List, Optional
+import re
 
 import io
 
@@ -44,12 +45,23 @@ from models.schemas import (
     UnknownFaceEntry,
     UnknownFacesListResponse,
     VideoUploadResponse,
+    WebcamFaceMatch,
+    WebcamRecognitionResponse,
 )
 from utils.csv_handler import fetch_daily_roster, manual_override_attendance
 from utils.storage import list_unknown_face_images, load_attendance_df, load_biometrics_raw
 from utils.vision_engine import process_video
 
+import time
+from typing import Dict
+
+import numpy as np
+import face_recognition
+from PIL import Image
+
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
+
+IRN_PATTERN = re.compile(r"^CS24(0[1-9]|[1-8][0-9]|90)$", re.IGNORECASE)
 
 # Allowed video MIME types
 ALLOWED_VIDEO_CONTENT_TYPES = {
@@ -330,6 +342,139 @@ def _extract_timestamp_from_filename(filename: str) -> Optional[str]:
 
 
 # ──────────────────────────────────────────────
+#  POST /webcam-frame
+# ──────────────────────────────────────────────
+
+
+@router.post(
+    "/webcam-frame",
+    response_model=WebcamRecognitionResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="Recognize faces from a single webcam frame",
+    description=(
+        "Accepts a single image frame (JPEG/PNG) from the live webcam feed, "
+        "detects faces, and matches them against enrolled students."
+    ),
+)
+async def recognize_webcam_frame(
+    frame: UploadFile = File(..., description="Webcam frame image (JPEG/PNG)."),
+) -> WebcamRecognitionResponse:
+    """
+    Process one webcam frame and return face matches without
+    writing attendance. Use the attendance endpoint for marking.
+    """
+    start_time = time.time()
+
+    if not frame.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error="No image provided",
+                detail="A webcam frame image is required.",
+            ).model_dump(),
+        )
+
+    try:
+        frame_bytes = await frame.read()
+        if len(frame_bytes) == 0:
+            raise ValueError("Empty image file.")
+
+        pil_image = Image.open(io.BytesIO(frame_bytes))
+        if pil_image.mode != "RGB":
+            pil_image = pil_image.convert("RGB")
+        image_array = np.array(pil_image)
+    except Exception as image_error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error="Invalid image",
+                detail=f"Unable to read frame: {image_error}",
+            ).model_dump(),
+        )
+
+    try:
+        face_locations = face_recognition.face_locations(
+            image_array,
+            number_of_times_to_upsample=1,
+            model="hog",
+        )
+        face_encodings = face_recognition.face_encodings(
+            image_array,
+            face_locations,
+            num_jitters=1,
+        )
+    except Exception as detection_error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="Face detection failed",
+                detail=str(detection_error),
+            ).model_dump(),
+        )
+
+    biometrics_store = load_biometrics_raw()
+    known_encodings: list[np.ndarray] = []
+    known_students: list[Dict[str, Optional[str]]] = []
+
+    for student_id, record_dict in biometrics_store.items():
+        encodings = record_dict.get("encodings", [])
+        for encoding_entry in encodings:
+            known_encodings.append(np.array(encoding_entry.get("encoding"), dtype=np.float64))
+            known_students.append(
+                {
+                    "student_id": student_id,
+                    "student_name": record_dict.get("student_name"),
+                    "division": record_dict.get("division"),
+                }
+            )
+
+    matches: list[WebcamFaceMatch] = []
+    students_matched = 0
+    unknown_faces = 0
+
+    for index, (encoding, location) in enumerate(zip(face_encodings, face_locations)):
+        match_entry = WebcamFaceMatch(
+            face_index=index,
+            face_location=[int(coord) for coord in location],
+            matched=False,
+        )
+
+        if known_encodings:
+            distances = face_recognition.face_distance(known_encodings, encoding)
+            best_match_index = int(np.argmin(distances))
+            best_distance = float(distances[best_match_index])
+            match_entry.distance = round(best_distance, 3)
+            match_entry.confidence = round((1 - best_distance) * 100, 1)
+
+            if best_distance <= settings.face_match_threshold:
+                match_entry.matched = True
+                match_entry.student_id = known_students[best_match_index]["student_id"]
+                match_entry.student_name = known_students[best_match_index]["student_name"]
+                match_entry.division = known_students[best_match_index]["division"]
+                students_matched += 1
+            else:
+                unknown_faces += 1
+        else:
+            unknown_faces += 1
+
+        matches.append(match_entry)
+
+    processing_time_ms = (time.time() - start_time) * 1000
+
+    return WebcamRecognitionResponse(
+        success=True,
+        faces_found=len(face_locations),
+        students_matched=students_matched,
+        unknown_faces=unknown_faces,
+        processing_time_ms=processing_time_ms,
+        matches=matches,
+    )
+
+
+# ──────────────────────────────────────────────
 #  GET /daily-roster
 # ──────────────────────────────────────────────
 
@@ -519,14 +664,26 @@ async def get_student_attendance(student_id: str) -> StudentAttendanceHistoryRes
     """
     # Verify student exists in biometrics
     biometrics = load_biometrics_raw()
-    student_data = biometrics.get(student_id)
+    normalized_student_id = student_id.strip().upper()
+    student_data = biometrics.get(normalized_student_id)
 
     if not student_data:
+        if IRN_PATTERN.fullmatch(normalized_student_id):
+            return StudentAttendanceHistoryResponse(
+                student_id=normalized_student_id,
+                student_name=f"Student {normalized_student_id}",
+                division="Computer Science",
+                total_records=0,
+                present_count=0,
+                absent_count=0,
+                attendance_percentage=0.0,
+                records=[],
+            )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ErrorResponse(
                 error="Student not found",
-                detail=f"No student with ID '{student_id}' is enrolled in the system.",
+                detail=f"No student with ID '{normalized_student_id}' is enrolled in the system.",
             ).model_dump(),
         )
 
@@ -538,7 +695,7 @@ async def get_student_attendance(student_id: str) -> StudentAttendanceHistoryRes
 
     if df.empty:
         return StudentAttendanceHistoryResponse(
-            student_id=student_id,
+            student_id=normalized_student_id,
             student_name=student_name,
             division=division,
             total_records=0,
@@ -548,11 +705,11 @@ async def get_student_attendance(student_id: str) -> StudentAttendanceHistoryRes
             records=[],
         )
 
-    student_df = df[df["student_id"] == student_id].copy()
+    student_df = df[df["student_id"] == normalized_student_id].copy()
 
     if student_df.empty:
         return StudentAttendanceHistoryResponse(
-            student_id=student_id,
+            student_id=normalized_student_id,
             student_name=student_name,
             division=division,
             total_records=0,
@@ -586,7 +743,7 @@ async def get_student_attendance(student_id: str) -> StudentAttendanceHistoryRes
         )
 
     return StudentAttendanceHistoryResponse(
-        student_id=student_id,
+        student_id=normalized_student_id,
         student_name=student_name,
         division=division,
         total_records=total_records,

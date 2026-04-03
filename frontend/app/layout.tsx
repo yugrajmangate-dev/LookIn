@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import React from "react";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "LookIn — Student Attendance System",
@@ -16,7 +22,7 @@ export default function RootLayout({
 }): React.JSX.Element {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>
+      <body className={inter.className}>
         <AppShell>{children}</AppShell>
       </body>
     </html>

@@ -24,13 +24,13 @@ export default function SettingsPage(): React.JSX.Element {
             </div>
           </div>
           <div className="mt-4 space-y-3 text-sm text-gray-600">
-            <label className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3">
+            <label htmlFor="mfa-setting" className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3">
               Multi-factor authentication
-              <input type="checkbox" className="h-4 w-4" />
+              <input id="mfa-setting" type="checkbox" className="h-4 w-4" />
             </label>
-            <label className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3">
+            <label htmlFor="autologout-setting" className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3">
               Auto logout after inactivity
-              <input type="checkbox" className="h-4 w-4" />
+              <input id="autologout-setting" type="checkbox" className="h-4 w-4" />
             </label>
           </div>
         </div>
@@ -46,13 +46,13 @@ export default function SettingsPage(): React.JSX.Element {
             </div>
           </div>
           <div className="mt-4 space-y-3 text-sm text-gray-600">
-            <label className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3">
+            <label htmlFor="daily-email-setting" className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3">
               Daily attendance summary email
-              <input type="checkbox" className="h-4 w-4" />
+              <input id="daily-email-setting" type="checkbox" className="h-4 w-4" />
             </label>
-            <label className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3">
+            <label htmlFor="unknown-face-alerts" className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3">
               Unknown face detection alerts
-              <input type="checkbox" className="h-4 w-4" />
+              <input id="unknown-face-alerts" type="checkbox" className="h-4 w-4" />
             </label>
           </div>
         </div>

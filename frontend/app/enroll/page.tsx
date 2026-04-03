@@ -428,8 +428,9 @@ export default function EnrollStudentPage(): React.JSX.Element {
                 <Camera className="h-3 w-3" />
                 Reference Photos <span className="text-red-400">*</span>
               </h3>
-              <label className="mt-3 flex items-start gap-2 text-xs text-gray-600">
+              <label htmlFor="consent-biometric" className="mt-3 flex items-start gap-2 text-xs text-gray-600">
                 <input
+                  id="consent-biometric"
                   type="checkbox"
                   className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600"
                   checked={consentGiven}
@@ -449,6 +450,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
                     autoPlay
                     playsInline
                     muted
+                    aria-label="Camera preview for capturing face images"
                   />
                   {!isCameraRunning && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
