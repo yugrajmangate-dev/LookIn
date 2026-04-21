@@ -20,7 +20,13 @@ import {
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import SystemStatusPanel from "@/components/SystemStatusPanel";
-import { apiUrl, type EnrollmentResponse, type ErrorResponse } from "@/lib/api";
+import {
+  apiUrl,
+  type EnrollmentResponse,
+  type ErrorResponse,
+  type WebcamFaceMatch,
+  type WebcamRecognitionResponse,
+} from "@/lib/api";
 
 interface ImagePreview {
   id: string;
@@ -48,10 +54,15 @@ export default function EnrollStudentPage(): React.JSX.Element {
   );
   const [hasCameraAccess, setHasCameraAccess] = useState<boolean>(true);
   const [isCameraRunning, setIsCameraRunning] = useState<boolean>(false);
+  const [detectedFaces, setDetectedFaces] = useState<WebcamFaceMatch[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const inFlightRef = useRef<boolean>(false);
+  const isCameraRunningRef = useRef<boolean>(false);
+  const detectionCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   /* ── Image handling ──────────────────────────── */
@@ -173,6 +184,150 @@ export default function EnrollStudentPage(): React.JSX.Element {
   };
 
   /* ── Webcam capture ─────────────────────────── */
+  const drawFaceBoxes = useCallback((matches: WebcamFaceMatch[]) => {
+    const canvas = detectionCanvasRef.current;
+    const video = videoRef.current;
+    if (!canvas || !video) return;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const width = video.videoWidth || 640;
+    const height = video.videoHeight || 480;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    context.clearRect(0, 0, width, height);
+    context.lineWidth = 2;
+
+    matches.forEach((match) => {
+      const [top, right, bottom, left] = match.face_location;
+      const boxWidth = Math.max(0, right - left);
+      const boxHeight = Math.max(0, bottom - top);
+
+      const boxColor = match.matched ? "#22c55e" : "#ef4444"; // green / red
+      context.strokeStyle = boxColor;
+      context.lineWidth = Math.max(2, Math.round(width / 320));
+      context.strokeRect(left, top, boxWidth, boxHeight);
+
+      // Draw label (student name or unknown) above the box when possible
+      const label = match.matched && match.student_name ? `Student: ${match.student_name}` : "Unknown - Not Recognized";
+      const fontSize = Math.max(12, Math.round((width / 640) * 14));
+      context.font = `${fontSize}px sans-serif`;
+      context.textBaseline = "top";
+      const textPadding = 6;
+      const textWidth = Math.ceil(context.measureText(label).width);
+      const labelWidth = textWidth + textPadding * 2;
+      const labelHeight = fontSize + 6;
+      let labelX = left;
+      let labelY = top - labelHeight - 6;
+      if (labelY < 0) labelY = top + 6;
+
+      // background for label
+      context.fillStyle = "rgba(0, 0, 0, 0.6)";
+      context.fillRect(labelX, labelY, labelWidth, labelHeight);
+
+      // label text
+      context.fillStyle = "#ffffff";
+      context.fillText(label, labelX + textPadding, labelY + 3);
+    });
+  }, []);
+
+  const captureFrame = useCallback(async (): Promise<Blob | null> => {
+    const video = videoRef.current;
+    if (!video) return null;
+
+    const width = video.videoWidth || 640;
+    const height = video.videoHeight || 480;
+
+    if (!captureCanvasRef.current) {
+      captureCanvasRef.current = document.createElement("canvas");
+    }
+
+    const canvas = captureCanvasRef.current;
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+
+    context.drawImage(video, 0, 0, width, height);
+
+    return new Promise((resolve) => {
+      canvas.toBlob(
+        (blob) => resolve(blob),
+        "image/jpeg",
+        0.9
+      );
+    });
+  }, []);
+
+  const sendFrameForDetection = useCallback(async () => {
+    if (inFlightRef.current || !isCameraRunningRef.current) return;
+
+    const video = videoRef.current;
+    if (!video || video.readyState < 2) return;
+
+    inFlightRef.current = true;
+
+    try {
+      const blob = await captureFrame();
+      if (!blob) return;
+
+      const formData = new FormData();
+      formData.append("frame", blob, "frame.jpg");
+
+      const response = await fetch(apiUrl("/api/attendance/webcam-frame"), {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        setDetectedFaces([]);
+        drawFaceBoxes([]);
+        setCameraStatus("Face detection failed. Check the backend connection.");
+        return;
+      }
+
+      const payload: WebcamRecognitionResponse = await response.json();
+
+      setDetectedFaces(payload.matches);
+      drawFaceBoxes(payload.matches);
+
+      if (payload.faces_found === 0) {
+        setCameraStatus("No face detected yet. Move closer until a single face is outlined.");
+        return;
+      }
+
+      if (payload.faces_found > 1) {
+        setCameraStatus("Multiple faces detected. Keep only one person in frame before capturing.");
+        return;
+      }
+
+      const firstFace = payload.matches[0];
+      if (firstFace?.matched) {
+        setCameraStatus(
+          "Face detected. This face already matches an enrolled student. Capture only if you need extra reference photos."
+        );
+      } else {
+        setCameraStatus(
+          "Face detected. Capture is enabled for this new student once the box stays steady."
+        );
+      }
+    } catch (error) {
+      setDetectedFaces([]);
+      drawFaceBoxes([]);
+      setCameraStatus(
+        error instanceof Error
+          ? error.message
+          : "Face detection failed. Check network or backend connectivity."
+      );
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, [captureFrame, drawFaceBoxes]);
+
   const startCamera = useCallback(async () => {
     if (!consentGiven) {
       setErrorMessage("Please provide consent before enabling the camera.");
@@ -190,9 +345,20 @@ export default function EnrollStudentPage(): React.JSX.Element {
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
       setHasCameraAccess(true);
+      isCameraRunningRef.current = true;
       setIsCameraRunning(true);
-      setCameraStatus("Camera live. Capture 3-5 clear face photos.");
+      setDetectedFaces([]);
+      drawFaceBoxes([]);
+      setCameraStatus("Camera live. Waiting for a single face to be outlined.");
+
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = setInterval(() => {
+        void sendFrameForDetection();
+      }, 1500);
+
+      void sendFrameForDetection();
     } catch (error) {
+      isCameraRunningRef.current = false;
       setHasCameraAccess(false);
       setIsCameraRunning(false);
       setCameraStatus(
@@ -201,20 +367,46 @@ export default function EnrollStudentPage(): React.JSX.Element {
           : "Unable to access camera. Check permissions."
       );
     }
-  }, [consentGiven]);
+  }, [consentGiven, drawFaceBoxes, sendFrameForDetection]);
 
   const stopCamera = useCallback(() => {
+    isCameraRunningRef.current = false;
+
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    const canvas = detectionCanvasRef.current;
+    if (canvas) {
+      const context = canvas.getContext("2d");
+      context?.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
     setIsCameraRunning(false);
+    setDetectedFaces([]);
     setCameraStatus("Camera stopped. You can start again anytime.");
   }, []);
 
   const capturePhoto = useCallback(async () => {
     const video = videoRef.current;
     if (!video || !isCameraRunning) return;
+
+    if (detectedFaces.length !== 1) {
+      setErrorMessage("Capture is available only when one face is outlined in the preview.");
+      return;
+    }
+
+    setErrorMessage(null);
 
     const width = video.videoWidth || 640;
     const height = video.videoHeight || 480;
@@ -245,10 +437,12 @@ export default function EnrollStudentPage(): React.JSX.Element {
         },
       ]);
     }, "image/jpeg", 0.9);
-  }, [isCameraRunning]);
+  }, [detectedFaces.length, isCameraRunning]);
 
   useEffect(() => {
     return () => {
+      isCameraRunningRef.current = false;
+      if (pollRef.current) clearInterval(pollRef.current);
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
@@ -443,7 +637,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
             {/* Camera preview + capture */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1.2fr_0.8fr]">
               <div className="card-elevated overflow-hidden border border-dashed border-gray-200 bg-gray-50/60">
-                <div className="relative min-h-[220px]">
+                <div className="relative aspect-[4/3] min-h-[220px] overflow-hidden">
                   <video
                     ref={videoRef}
                     className="h-full w-full object-cover"
@@ -452,6 +646,25 @@ export default function EnrollStudentPage(): React.JSX.Element {
                     muted
                     aria-label="Camera preview for capturing face images"
                   />
+                  <canvas
+                    ref={detectionCanvasRef}
+                    className="pointer-events-none absolute inset-0 h-full w-full"
+                    aria-hidden="true"
+                  />
+                  {isCameraRunning && (
+                    <div className="absolute left-3 top-3 rounded-full bg-gray-900/75 px-3 py-1 text-[11px] font-medium text-white shadow-sm backdrop-blur">
+                      {detectedFaces.length === 0
+                        ? "Waiting for face"
+                        : detectedFaces.length === 1
+                          ? "Face detected"
+                          : `${detectedFaces.length} faces detected`}
+                    </div>
+                  )}
+                  {isCameraRunning && detectedFaces.length === 1 && (
+                    <div className="absolute bottom-3 left-3 rounded-full bg-emerald-600/90 px-3 py-1 text-[11px] font-semibold text-white shadow-sm">
+                      Capture enabled
+                    </div>
+                  )}
                   {!isCameraRunning && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
                       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white">
@@ -490,7 +703,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
                   type="button"
                   className="btn-secondary w-full justify-center"
                   onClick={capturePhoto}
-                  disabled={!isCameraRunning}
+                  disabled={!isCameraRunning || detectedFaces.length !== 1}
                 >
                   <Camera className="h-4 w-4" />
                   Capture Photo
@@ -504,7 +717,15 @@ export default function EnrollStudentPage(): React.JSX.Element {
                   <Square className="h-4 w-4" />
                   Stop Camera
                 </button>
-                <p className="text-xs text-gray-500">Capture 3-5 clear photos</p>
+                <p className="text-xs text-gray-500">
+                  {isCameraRunning
+                    ? detectedFaces.length === 0
+                      ? "Capture stays disabled until a single face is outlined."
+                      : detectedFaces.length > 1
+                        ? "Keep only one face in frame before capturing."
+                        : "Face framed. You can capture this photo now."
+                    : "Capture 3-5 clear photos"}
+                </p>
               </div>
             </div>
 
@@ -543,6 +764,7 @@ export default function EnrollStudentPage(): React.JSX.Element {
                 accept="image/*"
                 multiple
                 onChange={handleFileInputChange}
+                aria-label="Upload reference photos"
                 className="hidden"
               />
             </div>

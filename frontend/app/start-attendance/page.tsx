@@ -55,8 +55,29 @@ export default function StartAttendancePage(): React.JSX.Element {
       const boxWidth = Math.max(0, right - left);
       const boxHeight = Math.max(0, bottom - top);
 
-      context.strokeStyle = match.matched ? "#22c55e" : "#f59e0b";
+      const boxColor = match.matched ? "#22c55e" : "#ef4444";
+      context.strokeStyle = boxColor;
+      context.lineWidth = Math.max(2, Math.round(width / 320));
       context.strokeRect(left, top, boxWidth, boxHeight);
+
+      // Draw label above the box: either student name or Unknown label
+      const label = match.matched && match.student_name ? `Student: ${match.student_name}` : "Unknown - Not Recognized";
+      const fontSize = Math.max(12, Math.round((width / 640) * 14));
+      context.font = `${fontSize}px sans-serif`;
+      context.textBaseline = "top";
+      const textPadding = 6;
+      const textWidth = Math.ceil(context.measureText(label).width);
+      const labelWidth = textWidth + textPadding * 2;
+      const labelHeight = fontSize + 6;
+      let labelX = left;
+      let labelY = top - labelHeight - 6;
+      if (labelY < 0) labelY = top + 6;
+
+      context.fillStyle = "rgba(0,0,0,0.6)";
+      context.fillRect(labelX, labelY, labelWidth, labelHeight);
+
+      context.fillStyle = "#ffffff";
+      context.fillText(label, labelX + textPadding, labelY + 3);
     });
   }, []);
 
