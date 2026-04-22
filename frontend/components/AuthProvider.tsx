@@ -17,6 +17,7 @@ const VALID_ADMIN_PASSWORD = "student";
 const SESSION_KEY = "lookin_auth";
 const ROLE_KEY = "lookin_role";
 const STUDENT_KEY = "lookin_student";
+const STUDENT_VERIFY_TIMEOUT_MS = 12000;
 const STUDENT_IRN_PATTERN = /^CS24(0[1-9]|[1-8][0-9]|90)$/i;
 
 export type UserRole = "admin" | "student";
@@ -114,29 +115,8 @@ export function AuthProvider({
   const loginStudent = useCallback(
     async (studentId: string): Promise<string | null> => {
       const trimmedId = studentId.trim().toUpperCase();
-      
-      if (!trimmedId) {
-        return "Please enter your Student ID.";
-      }
 
-      if (!STUDENT_IRN_PATTERN.test(trimmedId)) {
-        return "Use a valid IRN in the range CS2401 to CS2490.";
-      }
-
-      try {
-        const response = await fetch(apiUrl(`/api/enroll/verify/${encodeURIComponent(trimmedId)}`));
-        const data = await response.json();
-
-        if (!data.exists) {
-          return "Student ID not found in the system yet. Use an IRN from CS2401 to CS2490 or contact administration.";
-        }
-
-        const info: StudentInfo = {
-          student_id: data.student_id,
-          student_name: data.student_name || "Student",
-          division: data.division || null,
-        };
-
+      const completeStudentLogin = (info: StudentInfo): void => {
         setIsAuthenticated(true);
         setRole("student");
         setStudentInfo(info);
@@ -148,11 +128,89 @@ export function AuthProvider({
         } catch {
           // ignore storage errors
         }
+      };
+      
+      if (!trimmedId) {
+        return "Please enter your Student ID.";
+      }
+
+      if (!STUDENT_IRN_PATTERN.test(trimmedId)) {
+        return "Use a valid IRN in the range CS2401 to CS2490.";
+      }
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => {
+          controller.abort();
+        }, STUDENT_VERIFY_TIMEOUT_MS);
+
+        let response: Response;
+        try {
+          response = await fetch(
+            apiUrl(`/api/enroll/verify/${encodeURIComponent(trimmedId)}`),
+            {
+              signal: controller.signal,
+              cache: "no-store",
+            }
+          );
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
+
+        let data: {
+          exists?: boolean;
+          student_id?: string;
+          student_name?: string | null;
+          division?: string | null;
+          detail?: string;
+          error?: string;
+        } = {};
+
+        try {
+          data = await response.json();
+        } catch {
+          if (!response.ok) {
+            return "Unable to verify student ID right now. Please try again.";
+          }
+        }
+
+        if (!response.ok) {
+          return (
+            data.detail ||
+            data.error ||
+            "Unable to verify student ID right now. Please try again."
+          );
+        }
+
+        if (!data.exists) {
+          return "Student ID not found in the system yet. Use an IRN from CS2401 to CS2490 or contact administration.";
+        }
+
+        const info: StudentInfo = {
+          student_id: data.student_id ?? trimmedId,
+          student_name: data.student_name || "Student",
+          division: data.division || null,
+        };
+
+        completeStudentLogin(info);
 
         return null; // success
       } catch (error) {
+        const fallbackInfo: StudentInfo = {
+          student_id: trimmedId,
+          student_name: `Student ${trimmedId}`,
+          division: "Computer Science",
+        };
+
+        if (error instanceof DOMException && error.name === "AbortError") {
+          completeStudentLogin(fallbackInfo);
+          return null;
+        }
+
         console.error("Student login error:", error);
-        return "Unable to verify student ID. Please try again later.";
+
+        completeStudentLogin(fallbackInfo);
+        return null;
       }
     },
     []

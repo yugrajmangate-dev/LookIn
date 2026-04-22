@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import {
   ScanFace,
   LogIn,
@@ -13,6 +14,7 @@ import SystemStatusPanel from "@/components/SystemStatusPanel";
 
 export default function LoginPage(): React.JSX.Element {
   const { loginAdmin, loginStudent } = useAuth();
+  const router = useRouter();
 
   const [role, setRole] = useState<UserRole>("admin");
   const [identifier, setIdentifier] = useState<string>("");
@@ -22,23 +24,31 @@ export default function LoginPage(): React.JSX.Element {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     setError(null);
     setIsSubmitting(true);
 
-    if (role === "admin") {
-      const result = loginAdmin(identifier, password);
-      if (result) {
-        setError(result);
-        setIsSubmitting(false);
+    try {
+      if (role === "admin") {
+        const result = loginAdmin(identifier, password);
+        if (result) {
+          setError(result);
+          return;
+        }
+
+        router.replace("/");
+      } else {
+        const result = await loginStudent(identifier);
+        if (result) {
+          setError(result);
+          return;
+        }
+
+        router.replace("/student");
       }
-      // On success the AuthProvider flips isAuthenticated → layout re-renders
-    } else {
-      // Student login — just needs student_id
-      const result = await loginStudent(identifier);
-      if (result) {
-        setError(result);
-        setIsSubmitting(false);
-      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -121,7 +131,7 @@ export default function LoginPage(): React.JSX.Element {
                 id="identifier"
                 type="text"
                 required
-                autoComplete={role === "admin" ? "username" : "off"}
+                autoComplete="username"
                 autoFocus
                 placeholder={
                   role === "admin"

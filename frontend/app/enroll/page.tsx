@@ -28,6 +28,8 @@ import {
   type WebcamRecognitionResponse,
 } from "@/lib/api";
 
+const ENROLL_PREFILL_IMAGE_KEY = "lookin_enroll_prefill_image";
+
 interface ImagePreview {
   id: string;
   file: File;
@@ -199,38 +201,39 @@ export default function EnrollStudentPage(): React.JSX.Element {
     canvas.height = height;
 
     context.clearRect(0, 0, width, height);
-    context.lineWidth = 2;
-
     matches.forEach((match) => {
       const [top, right, bottom, left] = match.face_location;
       const boxWidth = Math.max(0, right - left);
       const boxHeight = Math.max(0, bottom - top);
 
-      const boxColor = match.matched ? "#22c55e" : "#ef4444"; // green / red
+      const boxColor = match.matched ? "#22c55e" : "#ef4444";
       context.strokeStyle = boxColor;
       context.lineWidth = Math.max(2, Math.round(width / 320));
+      context.lineJoin = "round";
       context.strokeRect(left, top, boxWidth, boxHeight);
 
-      // Draw label (student name or unknown) above the box when possible
-      const label = match.matched && match.student_name ? `Student: ${match.student_name}` : "Unknown - Not Recognized";
-      const fontSize = Math.max(12, Math.round((width / 640) * 14));
-      context.font = `${fontSize}px sans-serif`;
+      const label = match.matched && match.student_name
+        ? `Student: ${match.student_name}`
+        : "Unknown Face";
+      const fontSize = Math.max(12, Math.round((width / 640) * 13));
+      context.font = `600 ${fontSize}px Inter, sans-serif`;
       context.textBaseline = "top";
       const textPadding = 6;
       const textWidth = Math.ceil(context.measureText(label).width);
       const labelWidth = textWidth + textPadding * 2;
-      const labelHeight = fontSize + 6;
+      const labelHeight = fontSize + 8;
       let labelX = left;
       let labelY = top - labelHeight - 6;
       if (labelY < 0) labelY = top + 6;
+      if (labelX + labelWidth > width) {
+        labelX = Math.max(0, width - labelWidth - 2);
+      }
 
-      // background for label
-      context.fillStyle = "rgba(0, 0, 0, 0.6)";
+      context.fillStyle = match.matched ? "rgba(22, 101, 52, 0.92)" : "rgba(127, 29, 29, 0.92)";
       context.fillRect(labelX, labelY, labelWidth, labelHeight);
 
-      // label text
       context.fillStyle = "#ffffff";
-      context.fillText(label, labelX + textPadding, labelY + 3);
+      context.fillText(label, labelX + textPadding, labelY + 4);
     });
   }, []);
 
@@ -440,6 +443,49 @@ export default function EnrollStudentPage(): React.JSX.Element {
   }, [detectedFaces.length, isCameraRunning]);
 
   useEffect(() => {
+    const loadPrefilledUnknownFace = async () => {
+      try {
+        const rawPayload = sessionStorage.getItem(ENROLL_PREFILL_IMAGE_KEY);
+        if (!rawPayload) return;
+
+        sessionStorage.removeItem(ENROLL_PREFILL_IMAGE_KEY);
+
+        const parsedPayload = JSON.parse(rawPayload) as {
+          imageDataUrl?: string;
+          source?: string;
+        };
+
+        if (!parsedPayload.imageDataUrl) return;
+
+        const imageResponse = await fetch(parsedPayload.imageDataUrl);
+        const imageBlob = await imageResponse.blob();
+
+        if (!imageBlob.size) return;
+
+        const imageFile = new File(
+          [imageBlob],
+          `unknown-face-${Date.now()}.jpg`,
+          { type: imageBlob.type || "image/jpeg" }
+        );
+        const previewUrl = URL.createObjectURL(imageBlob);
+
+        setImages((previous) => [
+          ...previous,
+          {
+            id: `${imageFile.name}-${Date.now()}-${Math.random()}`,
+            file: imageFile,
+            previewUrl,
+          },
+        ]);
+
+        setCameraStatus("Unknown face loaded from live camera. Add details and enroll.");
+      } catch {
+        setErrorMessage("Unable to load the prefilled unknown face. Please capture again.");
+      }
+    };
+
+    void loadPrefilledUnknownFace();
+
     return () => {
       isCameraRunningRef.current = false;
       if (pollRef.current) clearInterval(pollRef.current);

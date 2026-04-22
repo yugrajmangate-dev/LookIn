@@ -29,6 +29,7 @@ interface StudentAttendanceResponse {
 }
 
 const RECORDS_PER_PAGE = 10;
+const STUDENT_ATTENDANCE_TIMEOUT_MS = 10000;
 
 export default function StudentDashboard(): React.JSX.Element {
   const { studentInfo } = useAuth();
@@ -44,10 +45,36 @@ export default function StudentDashboard(): React.JSX.Element {
       setIsLoading(true);
       setError(null);
 
+      const fallbackData: StudentAttendanceResponse = {
+        success: true,
+        student_id: studentInfo.student_id,
+        student_name: studentInfo.student_name,
+        division: studentInfo.division,
+        total_records: 0,
+        present_count: 0,
+        absent_count: 0,
+        attendance_percentage: 0,
+        records: [],
+      };
+
       try {
-        const response = await fetch(
-          apiUrl(`/api/attendance/student/${encodeURIComponent(studentInfo.student_id)}`)
-        );
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => {
+          controller.abort();
+        }, STUDENT_ATTENDANCE_TIMEOUT_MS);
+
+        let response: Response;
+        try {
+          response = await fetch(
+            apiUrl(`/api/attendance/student/${encodeURIComponent(studentInfo.student_id)}`),
+            {
+              signal: controller.signal,
+              cache: "no-store",
+            }
+          );
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
 
         if (!response.ok) {
           throw new Error("Failed to fetch attendance data");
@@ -57,14 +84,15 @@ export default function StudentDashboard(): React.JSX.Element {
         setData(result);
       } catch (err) {
         console.error("Error fetching student attendance:", err);
-        setError("Unable to load attendance data. Please try again later.");
+        setData(fallbackData);
+        setError("Live attendance data is currently unavailable. Showing your profile with no records.");
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchAttendance();
-  }, [studentInfo?.student_id]);
+  }, [studentInfo?.student_id, studentInfo?.student_name, studentInfo?.division]);
 
   // Pagination
   const totalPages = useMemo(() => {
@@ -296,6 +324,8 @@ export default function StudentDashboard(): React.JSX.Element {
                   <button
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
+                    aria-label="Previous page"
+                    title="Previous page"
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-gray-400 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <ChevronLeft className="h-4 w-4" />
@@ -303,6 +333,8 @@ export default function StudentDashboard(): React.JSX.Element {
                   <button
                     onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
+                    aria-label="Next page"
+                    title="Next page"
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-gray-400 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <ChevronRight className="h-4 w-4" />
