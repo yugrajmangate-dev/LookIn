@@ -34,6 +34,7 @@ export default function StartAttendancePage(): React.JSX.Element {
   const streamRef = useRef<MediaStream | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const inFlightRef = useRef<boolean>(false);
+  const isRunningRef = useRef<boolean>(false);
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -227,7 +228,7 @@ export default function StartAttendancePage(): React.JSX.Element {
       captureCanvas.toBlob(
         (blob) => resolve(blob),
         "image/jpeg",
-        0.8
+        0.92
       );
     });
   }, []);
@@ -245,6 +246,7 @@ export default function StartAttendancePage(): React.JSX.Element {
 
     try {
       let markedCount = 0;
+      let failedCount = 0;
       for (const match of pending) {
         const response = await fetch(apiUrl("/api/attendance/manual-override"), {
           method: "POST",
@@ -261,11 +263,15 @@ export default function StartAttendancePage(): React.JSX.Element {
         if (response.ok && match.student_id) {
           markedStudentIdsRef.current.add(match.student_id);
           markedCount += 1;
+        } else {
+          failedCount += 1;
         }
       }
 
       if (markedCount > 0) {
         setMarkingMessage(`Marked ${markedCount} student${markedCount === 1 ? "" : "s"} present.`);
+      } else if (failedCount > 0) {
+        setMarkingMessage("Detected matches, but attendance write failed. Check backend/API connection.");
       }
     } catch (error) {
       setMarkingMessage(
@@ -277,7 +283,7 @@ export default function StartAttendancePage(): React.JSX.Element {
   }, []);
 
   const sendFrameForRecognition = useCallback(async () => {
-    if (inFlightRef.current || !isRunning) return;
+    if (inFlightRef.current || !isRunningRef.current) return;
     const video = videoRef.current;
     if (!video || video.readyState < 2) return;
 
@@ -314,6 +320,12 @@ export default function StartAttendancePage(): React.JSX.Element {
         `${payload.students_matched} matched.`
       );
 
+      if (payload.faces_found > 0 && payload.students_matched === 0) {
+        setMarkingMessage(
+          "Face detected but not matched. Improve lighting/front angle or enroll 2-3 more photos."
+        );
+      }
+
       drawMatches(payload.matches);
 
       const nowLabel = new Date().toLocaleTimeString();
@@ -347,7 +359,7 @@ export default function StartAttendancePage(): React.JSX.Element {
     } finally {
       inFlightRef.current = false;
     }
-  }, [autoMarkEnabled, captureFrame, drawMatches, isRunning, markStudentsPresent]);
+  }, [autoMarkEnabled, captureFrame, drawMatches, markStudentsPresent]);
 
   const startDetection = useCallback(async () => {
     if (!videoRef.current) return;
@@ -358,7 +370,11 @@ export default function StartAttendancePage(): React.JSX.Element {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 },
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: "user",
+        },
         audio: false,
       });
 
@@ -367,6 +383,7 @@ export default function StartAttendancePage(): React.JSX.Element {
       await videoRef.current.play();
 
       markedStudentIdsRef.current.clear();
+      isRunningRef.current = true;
       setIsRunning(true);
       setStatusMessage("Camera live. Sending frames to the backend for recognition.");
       setMarkingMessage("");
@@ -375,18 +392,26 @@ export default function StartAttendancePage(): React.JSX.Element {
       pollRef.current = setInterval(() => {
         void sendFrameForRecognition();
       }, 1500);
+      void sendFrameForRecognition();
     } catch (error) {
+      isRunningRef.current = false;
       setIsRunning(false);
       setHasCameraAccess(false);
-      setStatusMessage(
-        error instanceof Error
-          ? error.message
-          : "Unable to access camera. Check permissions."
-      );
+      const cameraErrorMessage = error instanceof Error ? error.message : "";
+      if (cameraErrorMessage.toLowerCase().includes("denied") || cameraErrorMessage.toLowerCase().includes("notallowed")) {
+        setStatusMessage("Camera access is blocked. Allow camera permission in browser site settings, then click Start Recognition again.");
+      } else {
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Unable to access camera. Check permissions."
+        );
+      }
     }
   }, [sendFrameForRecognition]);
 
   const stopDetection = useCallback(() => {
+    isRunningRef.current = false;
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
@@ -412,6 +437,7 @@ export default function StartAttendancePage(): React.JSX.Element {
 
   useEffect(() => {
     return () => {
+      isRunningRef.current = false;
       if (pollRef.current) clearInterval(pollRef.current);
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());

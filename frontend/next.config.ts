@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  webpack: (config, { dev }) => {
+    if (dev) {
+      // Reduces intermittent ENOENT/cache corruption issues on synced folders.
+      config.cache = false;
+    }
+    return config;
+  },
   images: {
     remotePatterns: [
       {

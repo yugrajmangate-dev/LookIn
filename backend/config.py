@@ -19,10 +19,10 @@ class Settings(BaseSettings):
     unknown_faces_dirname: str = "unknown_faces"
     temp_video_dirname: str = "temp_videos"
     jobs_file: str = "processing_jobs.json"
-    face_match_threshold: float = 0.5
+    face_match_threshold: float = 0.58
     frames_per_second_to_process: int = 2
     current_academic_year: int = 2026
-    cors_origins: str = "http://localhost:3000,https://lookinportal.vercel.app"
+    cors_origins: str = "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,https://lookinportal.vercel.app"
 
     # ── Supabase persistent storage (production) ──────────
     # Leave blank for local development (falls back to filesystem).

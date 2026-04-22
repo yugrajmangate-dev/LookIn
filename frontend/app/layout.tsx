@@ -3,6 +3,7 @@ import React from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
+import ChunkErrorRecovery from "@/components/ChunkErrorRecovery";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -23,6 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
+        <ChunkErrorRecovery />
         <AppShell>{children}</AppShell>
       </body>
     </html>
