@@ -1,4 +1,5 @@
 # LookIn — Student Attendance Management System
+![Live-Website](https://lookinportal.vercel.app/)
 
 > Computer-vision-powered student attendance tracking using face recognition.
 
