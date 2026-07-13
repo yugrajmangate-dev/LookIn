@@ -8,7 +8,7 @@ Live-Website - (https://lookinportal.vercel.app/)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
 ![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv)
 
-## Features
+## Features...
 
 - **Video-Based Attendance** — Upload a classroom video and detect enrolled student faces automatically.
 - **Student Enrollment** — Register students with multiple face images for robust matching.
